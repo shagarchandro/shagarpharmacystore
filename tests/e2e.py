@@ -1,0 +1,25 @@
+from playwright.sync_api import sync_playwright
+B='http://localhost:8765/';res=[]
+def ok(c,m): res.append(('PASS ' if c else 'FAIL ')+m)
+with sync_playwright() as p:
+    b=p.chromium.launch(); ctx=b.new_context(viewport={'width':1280,'height':900}); pg=ctx.new_page(); errs=[]
+    pg.on('pageerror',lambda e:errs.append(str(e)[:100])); pg.on('dialog',lambda d:d.accept('Dr A, BMDC 1234, 2026-10-01'))
+    pg.goto(B+'index.html'); pg.wait_for_selector('#all article.card')
+    pg.click('#all article.card >> nth=0 >> button.btn'); ok(pg.inner_text('#cc')=='1','add to cart updates header count')
+    pg.goto(B+'index.html#/checkout')
+    for n,v in [('name','Rahim Uddin'),('phone','01712345678'),('addr','House 5, Road 3'),('thana','Dhanmondi'),('district','Dhaka'),('post','1205')]: pg.fill(f'#app input[name={n}]',v)
+    pg.click('#app button[type=submit]'); pg.wait_for_url('**#/success/*'); ok('Order placed' in pg.inner_text('#app'),'real browser: order placed, success page')
+    pg.goto(B+'index.html'); pg.fill('.hsearch input','Maxpro'); pg.press('.hsearch input','Enter'); pg.wait_for_timeout(200)
+    pg.click('#all article.card >> nth=0 >> button.btn'); pg.goto(B+'index.html#/checkout')
+    for n,v in [('name','Rahim Uddin'),('doc','Dr B, BMDC 99')]: pg.fill(f'#app input[name={n}]',v)
+    pg.check('#app input[name=ok]'); pg.click('#app button[type=submit]'); pg.wait_for_url('**#/success/*'); ok('prescription' in pg.inner_text('#app').lower(),'Rx order sent to pharmacist review')
+    pg.goto(B+'index.html#/orders'); ok('Prescription Review' in pg.inner_text('#app'),'customer sees Prescription Review status')
+    ctx.add_init_script("sessionStorage.setItem('mc_role','Pharmacist')"); pg.goto(B+'admin/index.html#rx'); pg.wait_for_selector('#app article.card'); pg.click('text=Approve'); pg.wait_for_timeout(300); ok('No prescriptions waiting' in pg.inner_text('#app'),'pharmacist approves Rx in real browser')
+    ctx2=b.new_context(viewport={'width':1280,'height':900}); ctx2.add_init_script("sessionStorage.setItem('mc_role','Owner')")
+    p2=ctx2.new_page(); p2.on('dialog',lambda d:d.accept('x')); p2.on('pageerror',lambda e:errs.append(str(e)[:100])); p2.goto(B+'admin/pos.html'); p2.wait_for_selector('#pq')
+    p2.fill('#pq','890001000'); p2.press('#pq','Enter'); p2.wait_for_timeout(200); p2.fill('[aria-label="Cash received"]','100'); p2.click('text=Complete sale'); p2.wait_for_selector('dialog[open]'); ok('INV-POS-1' in p2.inner_text('dialog[open]'),'POS barcode sale prints receipt dialog')
+    p2.screenshot(path='/tmp/pos_receipt.png')
+    p2.goto(B+'admin/index.html#data'); import json; open('/tmp/bad.json','w').write(json.dumps({'v':9})); p2.set_input_files('input[type=file]','/tmp/bad.json'); p2.wait_for_timeout(300); ok('Import failed' in p2.inner_text('#toasts'),'bad backup rejected in browser')
+    ctx3=b.new_context(viewport={'width':390,'height':844}); ctx3.add_init_script("localStorage.setItem('mc_lang','bn')"); p3=ctx3.new_page(); p3.goto(B+'index.html'); p3.wait_for_selector('#all article.card'); ok('কার্টে যোগ করুন' in p3.inner_text('#all'),'Bangla toggle shows Bangla buttons'); ok('নাপা' in p3.inner_text('#feat')+p3.inner_text('#all'),'Bangla product names'); p3.screenshot(path='/tmp/bn_mobile.png')
+    ok(not errs,'no page errors: '+str(errs)); b.close()
+print('\n'.join(res))
