@@ -1,7 +1,7 @@
 from playwright.sync_api import sync_playwright
 B='http://localhost:8765/'
 store=['index.html','index.html#/cart','index.html#/checkout','index.html#/orders','index.html#/wishlist','index.html#/info','index.html#/contact','index.html#/product/P2','products.html','faq.html','cart.html']
-tabs=['alerts','dash','rx','products','cats','inv','pos','orders','returns','purchases','suppliers','customers','expenses','delivery','reports','users','notes','settings','data']
+tabs=['stk','alerts','dash','rx','products','cats','inv','pos','orders','returns','purchases','suppliers','customers','expenses','delivery','reports','users','notes','settings','data']
 issues=[]
 with sync_playwright() as p:
     b=p.chromium.launch()

@@ -1,0 +1,7 @@
+/* responsive.css: breakpoints, reduced motion and print rules (load last) */
+@media(max-width:900px){body.adm{padding-left:0}.side{transform:translateX(-100%)}body.open .side{transform:none;box-shadow:0 0 0 100vmax #0007}.burger{display:inline-block}}
+@media(max-width:640px){main{padding:.7rem}.hero::before,.hero::after{opacity:.25}.bar nav{order:3;width:100%}.hsearch{order:2;max-width:none;flex-basis:100%;margin:0}.filters{padding:.7rem}.grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}.tools{margin-left:auto}th,td{padding:.45rem}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media print{.bar,.side,.top,button,.foot{display:none}body.adm{padding:0}}
+@media print{body:has(dialog[open])>*:not(dialog){display:none!important}dialog[open]{position:static;width:100%;max-width:none;border:0;box-shadow:none;margin:0}dialog::backdrop{display:none}body.adm{padding:0}}
+@media(max-width:900px){.foot-grid{grid-template-columns:1fr 1fr}.contact-grid{grid-template-columns:1fr}}@media(max-width:640px){.foot-grid{grid-template-columns:1fr}.orders-grid{grid-template-columns:1fr}}

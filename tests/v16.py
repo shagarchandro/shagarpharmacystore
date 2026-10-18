@@ -1,0 +1,25 @@
+# Real-browser tests: system theme/language defaults, nav badges, notifications, status history, PO print. Serve on port 8765 first.
+from playwright.sync_api import sync_playwright
+B='http://localhost:8765/';res=[]
+def ok(c,m): res.append(('PASS ' if c else 'FAIL ')+m)
+with sync_playwright() as p:
+    b=p.chromium.launch()
+    c=b.new_context(color_scheme='dark',locale='bn-BD'); pg=c.new_page(); pg.goto(B+'index.html'); pg.wait_for_selector('#all article.card')
+    ok(pg.evaluate("document.documentElement.dataset.theme")=='dark' and 'কার্ট' in pg.inner_text('body'),'dark theme and Bangla follow the device defaults'); c.close()
+    c=b.new_context(color_scheme='light',locale='en-US'); pg=c.new_page(); pg.goto(B+'index.html'); pg.wait_for_selector('#all article.card'); ok(pg.evaluate("document.documentElement.dataset.theme")=='light' and 'Add to cart' in pg.inner_text('#all'),'light theme and English by default')
+    pg.evaluate("localStorage.setItem('mc_cart',JSON.stringify({P5:1}))"); pg.goto(B+'checkout.html')
+    for n,v in [('name','Rx Customer'),('phone','01712345678'),('addr','House 5, Road 3'),('thana','Dhanmondi'),('district','Dhaka'),('doc','Dr B, BMDC 99')]: pg.fill(f'#app input[name={n}]',v)
+    pg.check('#app input[name=ok]'); pg.click('#app button[type=submit]'); pg.wait_for_url('**#/success/*'); state=c.storage_state(); c.close()
+    a=b.new_context(storage_state=state,viewport={'width':1280,'height':900}); a.add_init_script("sessionStorage.setItem('mc_role','Owner')"); ap=a.new_page(); ap.on('dialog',lambda d:d.accept('x')); errs=[]; ap.on('pageerror',lambda e:errs.append(str(e)[:100]))
+    ap.goto(B+'admin/index.html#rx'); ap.wait_for_selector('#app article.card')
+    bv=lambda k: ap.inner_text(f'#bdg-{k}')
+    ok(bv('rx')=='1' and bv('notes')=='1','badge counts: 1 prescription waiting, 1 unread notification'); ok(ap.is_visible('#bdg-rx') and ap.is_visible('#bdg-notes'),'sidebar badges show pending prescriptions and unread notifications')
+    ap.click('button:text-is("Approve")'); ap.wait_for_timeout(300); ok(not ap.is_visible('#bdg-rx'),'prescription badge disappears after approval')
+    ap.click('#side nav button[data-t=notes]'); ap.wait_for_selector('button:text-is("Mark read")'); ap.click('button:text-is("Mark read")'); ap.wait_for_timeout(250); ok(not ap.is_visible('#bdg-notes'),'marking a notification read clears the badge')
+    ap.click('#side nav button[data-t=orders]'); ap.wait_for_selector('button:text-is("History")'); ap.click('button:text-is("History")'); ap.wait_for_selector('dialog[open]'); t=ap.inner_text('dialog[open]')
+    ok('Prescription Review · by Customer' in t and 'Confirmed · by Owner' in t,'status history records who changed what')
+    ap.evaluate("document.querySelector('dialog').remove()")
+    ap.click('#side nav button[data-t=purchases]'); ap.wait_for_selector('form.row'); ap.fill('input[name=qty]','12'); ap.fill('input[name=cost]','10'); ap.click('button:text-is("Create PO")'); ap.wait_for_timeout(250)
+    ap.click('button:text-is("Print PO")'); ap.wait_for_selector('dialog[open]'); t=ap.inner_text('dialog[open]'); ok('PO-1001' in t and '৳120' in t and 'Supplier' in t,'purchase order print view shows number, supplier and total')
+    ok(not errs,'no page errors '+str(errs)); b.close()
+print('\n'.join(res))

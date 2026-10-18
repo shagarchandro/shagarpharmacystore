@@ -1,57 +1,76 @@
 # MediCare Pharmacy Management System (demo)
-Vanilla HTML/CSS/JS storefront + admin panel for a fictional Bangladesh pharmacy. No build step.
 
-## Run
-Open this folder in VS Code → right-click `index.html` → **Open with Live Server** (or `python3 -m http.server`).
-Admin: `/admin/login.html`, pick a role, demo code `demo` (not real security).
+A responsive pharmacy storefront plus admin panel for a fictional Bangladesh pharmacy, built with HTML5, CSS3 and vanilla JavaScript (no framework, no build step). Data lives in the browser's LocalStorage.
 
-## Structure
-`index.html` (storefront SPA: shop, cart, checkout, orders, wishlist, help) · `admin/` (login + panel) · `assets/js/core.js` (storage, seed data, i18n, FEFO stock) · `store.js` · `admin.js` · `assets/css/styles.css`.
+> **Demo only.** This is not a secure production pharmacy system. See "Limitations" and "Future backend".
 
-## Implemented
-Search/filter/sort/pagination, product details, Rx flagging + pharmacist-review gate, cart with stock validation and coupon `SAVE10`, checkout with BD phone validation, order tracking/cancel/return request, wishlist, dark mode, EN/বাংলা (core labels), ৳ and Asia/Dhaka dates.
-Admin: role-based tabs, KPIs, product add/price edit/delete, batch inventory with FEFO + expiry blocking + write-off + receiving, POS with receipt/suspend/resume, order statuses, reports + CSV (formula-safe), JSON export/import (validated, preview) and reset.
+## Requirements
+Any modern browser and a local static server (VS Code Live Server, `python3 -m http.server`, etc.). Pages must be served over HTTP, not opened as `file://`.
 
-## Data
-Everything is in LocalStorage key `mc_db` (schema v1). Reset: Admin → Data → Reset.
+## Run with VS Code Live Server
+1. Extract the ZIP and open the `MediCare-Pharmacy` folder in VS Code.
+2. Right-click `index.html` → **Open with Live Server**.
+3. Admin panel: `/admin/login.html`. Pick a demo user and enter the demo code **`demo`** (it is a convenience, not security; no passwords are stored).
 
-## Added in v2
-Purchase orders with receive-to-stock (stock counts only after receiving) and purchase returns, order returns/refunds with optional restock, suppliers with balances and payments, customers with loyalty points, expenses and cashbook with shift closing, delivery queue, settings, coupons, activity log.
+Demo users: Owner, Pharmacist, Cashier, Inventory Manager, Delivery Staff (manage them under Admin → Users).
+Demo coupon: `SAVE10` (10% off orders of ৳500+). Demo barcodes: `890001000` … `890001011`.
 
-## Added in v3
-Alerts tab (low stock, near expiry, expired, Rx reviews, return requests), full report set with daily/weekly/monthly periods and CSV export per table, product edit (name, reorder level, Rx flag), generated placeholder product images (no external files), more Bangla labels. Fixed a bug where the admin panel failed to load because of a duplicate `V` identifier.
+## Folder structure
+```
+index.html                      storefront app (single-page, hash routes)
+products.html product-details.html cart.html checkout.html order-success.html
+orders.html wishlist.html contact.html faq.html shipping.html returns.html privacy.html terms.html
+                                real pages that open the matching storefront screen
+admin/login.html                demo login
+admin/index.html                admin app (dashboard, products, inventory, POS ...)
+admin/products|inventory|pos|orders|customers|suppliers|purchases|returns|reports|expenses|delivery|users|settings.html
+                                real pages that open that admin screen
+assets/css/styles.css           design tokens, base and storefront components
+assets/css/admin.css            admin shell (sidebar, top bar)
+assets/css/responsive.css       breakpoints, reduced motion, print rules (loaded last)
+assets/js/utils.js              DOM helper, formatting, ids, CSV (formula-safe), toasts
+assets/js/i18n.js               English/Bangla dictionary, theme and language helpers
+assets/js/storage.js            LocalStorage helpers, schema version, seed data, FEFO stock logic, loyalty
+assets/js/store.js              storefront: products, cart, checkout, orders, router
+assets/js/admin.js              admin panel: shell, products, inventory, POS, orders, reports, data
+assets/icons, assets/images     favicon, logo, placeholder (product images are generated or uploaded)
+tests/                          optional developer tests (Playwright / jsdom)
+README.md  TEST-CHECKLIST.md  .gitignore
+```
+The brief's suggested layout is followed for CSS (`styles/admin/responsive`) and for the shared JS (`storage/utils/i18n`). The storefront modules (`products/cart/checkout/app`) live together in `store.js`, and the admin modules (`admin/inventory/pos/reports`) in `admin.js`, because their views share state and are wrapped in a fixed order; splitting them further would add risk without changing behaviour.
 
-## Added in v4
-Per-feature entry pages (`products.html`, `cart.html`, `checkout.html`, `orders.html`, `wishlist.html`, `faq.html`, `privacy.html`, `terms.html`, `contact.html`, `admin/pos.html`, `admin/inventory.html`, etc.) that open the matching view of the single-page app; user management (Owner only, no passwords, login picks a demo user); in-app notifications (new orders, return requests); product image upload (resized to a small JPEG stored in LocalStorage); broader Bangla translation of labels, buttons, tables and messages.
+## Features
+**Storefront:** home (search, category chips, hero, featured, offers, health essentials, trust, testimonials, contact, footer), product list with search suggestions, category/brand/prescription filters, sorting, pagination, product pages (generic name, strength, manufacturer, form, pack, price, stock, batch/expiry, warning, prescription status), cart (quantity edit, stock validation, coupon, delivery fee, loyalty redemption), checkout (Bangladesh address fields, delivery or store pickup, demo payment choice, order summary), order confirmation, tracking timeline, guest tracking, profile with saved details, order history, cancel, return request, wishlist, contact form, FAQ, shipping, returns, privacy, terms. Light/dark mode, English/বাংলা, ৳ currency, Asia/Dhaka dates.
+**Prescriptions:** Rx items are clearly marked. Online Rx orders go to *Prescription Review* and cannot be processed until a pharmacist or owner approves (or rejects with a reason). At the POS, Rx items can only be sold by a pharmacist or owner with a prescription reference. Prescription documents are deliberately not stored.
+**Admin:** role-based tabs and permissions (Cashier may set Pending–Packed, Inventory Manager Processing/Packed, Delivery Staff Shipped/Delivered, Owner and Pharmacist everything; forbidden deep links fall back to an allowed screen; these checks run in the browser, so they are not real access control); dashboard (KPIs, quick actions, 7-day sales chart, low-stock and expiry alerts); product CRUD with images, discount, SKU/barcode, reorder level; categories and brands; batch inventory with FEFO, expiry blocking, adjustments and write-offs; POS (barcode, discounts, change, receipt, suspend/resume, refunds, loyalty); orders with all 11 statuses, filter and invoice; prescription queue; customers (notes, block); suppliers; purchase orders with partial receiving and purchase returns; returns and refunds; expenses, cashbook, shift closing; delivery with rider; coupons; notifications; audit trail; users; business settings; reports (daily/weekly/monthly sales, profit estimate, payment methods, product and category sales, purchases, supplier balances, inventory value, low stock, near expiry, expired loss, refunds, expenses) with date range and CSV export (formula-injection safe).
+**Data:** JSON export/import with validation, restore preview, confirmation, schema version 1, reset to demo data.
 
-## Added in v5
-Home page category chips, offers strip, testimonials (fictional) and footer; real product detail page (`#/product/ID`); contact form (saved as an in-app notification); order-success page; per-product discount % (shown with strike-through, used in cart, orders and POS); manual stock adjustment with reasons (damaged stock is logged as an expense); 7-day sales chart on the dashboard; printable order invoices; skip-to-content links.
+## Extras beyond the brief
+Products CSV import (template download, validation, preview, duplicate SKU/barcode detection, skips bad rows), day-end report you can print, dashboard top sellers (30 days) and POS profit estimate, a backup reminder when data exists and no export was made in 7 days, POS keyboard shortcuts (F2 focus search, F9 complete sale).
 
-## Added in v6
-Customer: saved details (checkout is prefilled), loyalty points, "Order again" (respects current stock), mandatory reason for return requests, pharmacy note shown on rejected prescriptions.
-Admin: Prescription review queue (approve, or reject with a reason that restocks the order and tells the customer), full product edit dialog (all fields, SKU/barcode uniqueness, discount limits), order search and status filter, reorder suggestions that create purchase orders (no duplicate open PO), POS quick-add buttons, admin audit trail in Settings.
+**Installable and offline (PWA):** `manifest.webmanifest` and `sw.js` let the app be installed from Chromium-based browsers and open without a network. The service worker is network-first, so while you are online (for example with Live Server) you always get your latest edits; offline you get the last copy of each page you visited. Data stays in LocalStorage either way. If you ever see a stale page during development, unregister the worker in your browser's developer tools (Application → Service Workers).
+**Stocktake:** Admin → Stocktake: print a count sheet, enter counted quantities per batch, see live variances, apply corrections (shortages are logged as stock loss at cost; expired batches cannot be increased).
+**Near-expiry markdown ideas:** Admin → Alerts lists products with batches expiring within 30 days and sets a 20% discount in one click.
 
-## Added in v7 (prompt gap audit + premium redesign)
-Design: new teal/mint/amber system with serif headlines, glass header with search, capsule hero, product cards with images and discount badges, admin sidebar shell with icons, active-item highlight, mobile off-canvas menu, dark mode, print styles, reduced-motion support.
-Storefront: header search, featured products and health essentials sections, brand and prescription-type filters, store pickup (free, no address needed), FAQ accordion help center, store name/address/phone from Settings, coupons honour the disable switch.
-Admin: Categories & brands management (rename/merge), dashboard quick actions and expiry alerts, FEFO "sell first" marker per batch, delivery rider assignment, coupon enable/disable/delete, full business settings (logo text, address, phone, receipt footer, default reorder level, theme and language for this browser).
+**Traceability and daily use:** every order status change is recorded automatically (what, when, by whom: Customer, Owner, Pharmacist ...) and shown under Orders → History; sidebar badges count waiting prescriptions, pending orders, alerts and unread notifications; notifications can be marked read one by one; purchase orders have a print view; first-time visitors get the dark theme and Bangla if their device prefers them (saved choices always win).
 
-## Added in v8
-Prescription control at the POS (Rx items need a pharmacist or owner plus a prescription reference, saved on the sale), POS sale refunds with optional restock and linked refund records, stock-log entries linked to the sale number, strict backup validation (schema version, unique ids, batch/order/sale checks) before the restore preview, Bangladesh address fields (division, district, thana/upazila, postcode), friendly error state instead of a blank page, product-sales report, batch number on product pages, favicon/logo/placeholder assets, more Bangla labels.
+**Storefront refresh (v17):** Shop has a result count, removable filter chips with Clear all, an In stock only switch, a Biggest-discount sort and a helpful empty state. Wishlist has a header count, Add all in-stock to cart, Clear wishlist and out-of-stock notes. Orders is newest-first with summary cards, status filter and search, timestamps on the timeline, expandable order details, Order again, Return request and a printable customer invoice. Help has a searchable FAQ in groups, section shortcuts and a Still need help card. Contact has topic, optional order number, inline validation with a character counter, a reference number on success (stored with a staff notification), and visit/hours details (fictional). The footer is a four-column layout with shop and help links (Help links jump to the right section), tel link, hours, Back to top and a staff login link.
 
-## Added in v9
-Customer management in admin (search, rename, internal note, block/unblock; blocked numbers cannot place orders; per-customer order list). Bangla product names, categories and order statuses. Real standalone pages: every storefront page (`cart.html`, `checkout.html`, `orders.html`, `wishlist.html`, `contact.html`, `faq.html`, `privacy.html`, `terms.html`, `products.html`, `product-details.html?id=P1`, `order-success.html?no=INV-1001`) and every admin page (`admin/pos.html`, `admin/inventory.html`, ...) now loads the app directly on that screen instead of redirecting. Fixes found in real-browser testing: admin deep links such as `admin/index.html#rx` opened the wrong tab; long generic names overflowed cards on phones; sidebar order and empty states tidied; clicking outside the mobile menu closes it.
+## Data, backup and reset
+Everything is stored under the LocalStorage key `mc_db`. Admin → Data: **Export JSON** (backup), **Import JSON** (validated, with a preview and confirmation), **Reset to demo data** (confirmation). Clearing browser data also removes the demo data.
 
-## Added in v10
-Add-product full form (all fields, image upload, discount, validation) alongside the quick form; supplier edit and guarded delete; partial purchase receiving (each delivery becomes its own batch; supplier balance follows what was actually received); guest order tracking by order number plus mobile number; report date range (From/To) applied to sales, profit and product sales; CSV export for orders and customers.
+## Deploy as a static site
+Upload the whole folder to any static host (GitHub Pages, Netlify, Cloudflare Pages, an Nginx/Apache folder). There is nothing to build; keep the folder structure. Remember that each visitor gets their own browser-local data and the admin "login" offers no real protection, so only deploy it as a demo.
 
-## Testing done
-Playwright with Chromium (served by `python3 -m http.server`): all store pages and all 19 admin tabs at 360, 768 and 1280 px had no console errors and no horizontal overflow; end-to-end flows passed (order, Rx order, pharmacist approval, POS barcode sale and receipt, bad-backup rejection, Bangla mode). A jsdom logic suite also passes. Scripts are in `tests/` (optional dev tools: `pip install playwright`, serve the folder on port 8765, run `python3 tests/e2e.py` and `python3 tests/e2e2.py`).
-Not tested: Firefox, Safari, a real phone, print preview, screen readers, VS Code Live Server itself.
+## Limitations
+- Demo-only login (shared code, role kept in sessionStorage); anyone can open the admin pages.
+- LocalStorage: single browser, no multi-user sync, size limit (uploaded product images are shrunk to ~240 px), data can be cleared by the user.
+- Payments, SMS/email, shipping and barcode hardware are **not** integrated (payment choice is a label; barcodes are typed or pasted; notifications are in-app only).
+- Product data and free text are not translated into Bangla; only interface text and the 12 demo product names are.
+- Only Chromium was available for browser testing; see TEST-CHECKLIST.md.
 
-## Prompt coverage (honest)
-Implemented: everything in the original brief that a browser-only demo can do. Still demo-only or not real: login (demo code, no passwords), payments (selection only), SMS/email (in-app notifications only), barcode hardware (keyboard entry only), prescription documents (deliberately not stored), delivery tracking (manual statuses).
-Not done: loyalty point redemption (points are displayed only); free-text content (notes, addresses, user-entered names) is not translated; Bangla product names exist only for the 12 demo products.
+## Future backend recommendations
+Use a server and database (e.g. PostgreSQL) with: real authentication (hashed credentials, MFA for staff), server-side role checks, transactional inventory (batch locks, FEFO in a transaction), a payment gateway (bKash/Nagad/cards via tokenised flow), SMS/email providers, protected prescription storage with access logs and retention rules, audit logs, scheduled backups, and a regulator-aware workflow for controlled medicines.
 
-## Limitations (honest)
-Demo only; not secure for real pharmacy use. Real use needs a backend, database, auth, audit trail and protected prescription handling.
+## Tests (optional developer tools)
+`tests/` contains Playwright scripts (`e2e.py`, `e2e2.py`, `loyalty.py`, `audit2.py`, `roles.py`, `v14.py`, `v15.py`, `v16.py`, `v17.py`, `sweep.py`, `axe_audit.py`, `print_receipt.py`) and a jsdom logic suite (`logic-jsdom.js`). Serve the folder on port 8765 and run them with Python (`pip install playwright`) or Node. They are not needed to run the app.

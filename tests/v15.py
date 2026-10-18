@@ -1,0 +1,26 @@
+# Real-browser tests: offline PWA, stocktake, near-expiry markdown. Serve on port 8765 first.
+from playwright.sync_api import sync_playwright
+B='http://localhost:8765/';res=[]
+def ok(c,m): res.append(('PASS ' if c else 'FAIL ')+m)
+with sync_playwright() as p:
+    b=p.chromium.launch(); ctx=b.new_context(viewport={'width':1280,'height':900}); ctx.add_init_script("sessionStorage.setItem('mc_role','Owner')")
+    pg=ctx.new_page(); errs=[]; pg.on('pageerror',lambda e:errs.append(str(e)[:100])); pg.on('dialog',lambda d:d.accept())
+    pg.goto(B+'index.html'); pg.wait_for_selector('#all article.card'); pg.evaluate("navigator.serviceWorker.ready.then(()=>1)"); pg.wait_for_timeout(500); pg.reload(); pg.wait_for_selector('#all article.card')
+    ok(pg.evaluate("document.querySelector('link[rel=manifest]')!==null && navigator.serviceWorker.controller!==null"),'manifest linked and service worker controls the page')
+    pg.goto(B+'admin/index.html'); pg.wait_for_selector('#side nav button'); pg.wait_for_timeout(500)
+    ctx.set_offline(True)
+    pg.goto(B+'index.html'); pg.wait_for_selector('#all article.card',timeout=8000); ok(True,'storefront loads offline from the service-worker cache')
+    pg.goto(B+'admin/index.html'); pg.wait_for_selector('#side nav button',timeout=8000); ok(True,'admin loads offline too'); ctx.set_offline(False)
+    pg.goto(B+'admin/index.html#stk'); pg.wait_for_selector('#app h1'); pg.click('#side nav button[data-t=stk]'); pg.wait_for_selector('#app tbody tr input')
+    qs=pg.evaluate("[...document.querySelectorAll('#app tbody tr')].slice(0,2).map(r=>+r.children[3].textContent)")
+    ins=pg.locator('#app tbody tr input'); ins.nth(0).fill(str(qs[0]-3)); ins.nth(1).fill(str(qs[1]+2))
+    ok(pg.inner_text('#app tbody tr >> nth=0').strip().endswith('-3'),'variance shows live while typing')
+    pg.click('text=Apply variances'); pg.wait_for_timeout(300)
+    r=pg.evaluate("(()=>{const d=JSON.parse(localStorage.mc_db);const l=d.log.filter(x=>x.why==='Stocktake').map(x=>x.delta).sort((a,b)=>a-b);return [l,d.expenses.filter(e=>/Stocktake shortage/.test(e.what)).length]})()")
+    ok(r[0]==[-3,2] and r[1]==1,f'stocktake logged shortage (-3, as expense) and overage (+2) {r}')
+    ins=pg.locator('#app tbody tr input'); ins.nth(0).fill('-5'); pg.click('text=Apply variances'); pg.wait_for_timeout(200); ok('whole numbers' in pg.inner_text('#toasts'),'negative counts are rejected')
+    pg.evaluate("(()=>{const d=JSON.parse(localStorage.mc_db);const b=d.batches.find(x=>x.pid==='P3'&&x.qty>0&&x.exp>new Date().toISOString().slice(0,10));b.exp=new Date(Date.now()+10*864e5).toISOString().slice(0,10);localStorage.mc_db=JSON.stringify(d)})()")
+    pg.goto(B+'admin/alerts.html') if False else pg.reload(); pg.click('#side nav button[data-t=alerts]'); pg.wait_for_selector('text=Set 20% discount'); pg.click('text=Set 20% discount >> nth=0'); pg.wait_for_timeout(250)
+    ok(pg.evaluate("JSON.parse(localStorage.mc_db).products.find(p=>p.id==='P3').disc")==20,'near-expiry markdown applies a 20% discount')
+    ok(not errs,'no page errors '+str(errs)); b.close()
+print('\n'.join(res))
