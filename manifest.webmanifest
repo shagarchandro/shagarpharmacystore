@@ -1,11 +1,11 @@
 {
- "name": "MediCare Pharmacy",
- "short_name": "MediCare",
+ "name": "Shagar Medical Store",
+ "short_name": "Shagar Medical",
  "start_url": "index.html",
  "scope": ".",
  "display": "standalone",
- "background_color": "#f4f9f7",
- "theme_color": "#0f766e",
+ "background_color": "#f6f4ee",
+ "theme_color": "#13694b",
  "icons": [
   {
    "src": "assets/icons/favicon.svg",

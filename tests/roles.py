@@ -2,7 +2,7 @@
 from playwright.sync_api import sync_playwright
 B='http://localhost:8765/';res=[]
 def ok(c,m): res.append(('PASS ' if c else 'FAIL ')+m)
-EXPECT={'Owner':20,'Pharmacist':6,'Cashier':3,'Inventory Manager':9,'Delivery Staff':2}
+EXPECT={'Owner':21,'Pharmacist':7,'Cashier':3,'Inventory Manager':10,'Delivery Staff':2}
 FORBID={'Pharmacist':'users','Cashier':'users','Inventory Manager':'settings','Delivery Staff':'reports'}
 with sync_playwright() as p:
     b=p.chromium.launch(); c0=b.new_context(); pg=c0.new_page(); pg.goto(B+'index.html'); pg.evaluate("localStorage.setItem('mc_cart',JSON.stringify({P3:1}))"); pg.goto(B+'checkout.html')

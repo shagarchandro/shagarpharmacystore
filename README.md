@@ -1,6 +1,6 @@
-# MediCare Pharmacy Management System (demo)
+# Shagar Medical Store – Pharmacy Management System (demo)
 
-A responsive pharmacy storefront plus admin panel for a fictional Bangladesh pharmacy, built with HTML5, CSS3 and vanilla JavaScript (no framework, no build step). Data lives in the browser's LocalStorage.
+A responsive pharmacy storefront plus admin panel for Shagar Medical Store (demo data is fictional), built with HTML5, CSS3 and vanilla JavaScript (no framework, no build step). Data lives in the browser's LocalStorage.
 
 > **Demo only.** This is not a secure production pharmacy system. See "Limitations" and "Future backend".
 
@@ -8,7 +8,7 @@ A responsive pharmacy storefront plus admin panel for a fictional Bangladesh pha
 Any modern browser and a local static server (VS Code Live Server, `python3 -m http.server`, etc.). Pages must be served over HTTP, not opened as `file://`.
 
 ## Run with VS Code Live Server
-1. Extract the ZIP and open the `MediCare-Pharmacy` folder in VS Code.
+1. Extract the ZIP and open the `MediCare-Pharmacy` folder in VS Code (the folder and ZIP names follow the original project brief; the shop name shown on the site is Shagar Medical Store).
 2. Right-click `index.html` → **Open with Live Server**.
 3. Admin panel: `/admin/login.html`. Pick a demo user and enter the demo code **`demo`** (it is a convenience, not security; no passwords are stored).
 
@@ -56,6 +56,12 @@ Products CSV import (template download, validation, preview, duplicate SKU/barco
 
 **Storefront refresh (v17):** Shop has a result count, removable filter chips with Clear all, an In stock only switch, a Biggest-discount sort and a helpful empty state. Wishlist has a header count, Add all in-stock to cart, Clear wishlist and out-of-stock notes. Orders is newest-first with summary cards, status filter and search, timestamps on the timeline, expandable order details, Order again, Return request and a printable customer invoice. Help has a searchable FAQ in groups, section shortcuts and a Still need help card. Contact has topic, optional order number, inline validation with a character counter, a reference number on success (stored with a staff notification), and visit/hours details (fictional). The footer is a four-column layout with shop and help links (Help links jump to the right section), tel link, hours, Back to top and a staff login link.
 
+**Color palettes:** four palettes, each with a light and a dark set: **Forest & Gold** (default; deep green, warm cream, gold), **Teal & Amber** (the earlier look), **Ocean & Coral** (blue with a coral accent) and **Plum & Sage**. Change them with the 🎨 button in the header (cycles), the *Colors* picker in the storefront footer, or Admin → Settings. The choice is remembered per browser; the browser's address-bar color and the generated product placeholder images follow it. All palettes are defined as CSS variables at the top of `assets/css/styles.css`, so a new palette is one block of ~20 variables. Every palette passed an axe-core contrast audit (WCAG 2 AA) in light and dark mode on the main storefront and admin pages.
+
+**Shop name:** the site is branded *Shagar Medical Store* (header, footer, page titles, receipts, invoices, admin sidebar, manifest, logo). Change the name, logo text, address, phone and receipt footer any time in Admin → Settings; the demo email, phone and opening hours shown on the Contact page are fictional and should be replaced before real use.
+
+**Admin power tools (v20):** a global search in the top bar (also Ctrl+K) that finds orders, products, customers and batches and opens the right screen already filtered (it only shows areas the signed-in role may open); a Products screen with search, category, type and low-stock filters plus a Bulk price change tool (±50–100%, previewed, confirmed and audited); every table has sortable column headers and a Show more button after 25 rows; **Ledger & recall** with a filterable stock ledger, the audit trail (both exportable to CSV) and a **batch recall** lookup that lists every online order and POS sale that received units from a batch, printable (online orders placed from now on carry their order number in the stock log; older ones show as "order"); a **Pick list** per order naming the exact batches to pull; dashboard period comparison (7 or 30 days, change vs the previous period, average basket); automatic logout after inactivity (Settings, default 30 minutes, 0 = off); and a Roles and permissions table in Users. Roles and logout are enforced in the browser only and are not real security.
+
 ## Data, backup and reset
 Everything is stored under the LocalStorage key `mc_db`. Admin → Data: **Export JSON** (backup), **Import JSON** (validated, with a preview and confirmation), **Reset to demo data** (confirmation). Clearing browser data also removes the demo data.
 
@@ -73,4 +79,4 @@ Upload the whole folder to any static host (GitHub Pages, Netlify, Cloudflare Pa
 Use a server and database (e.g. PostgreSQL) with: real authentication (hashed credentials, MFA for staff), server-side role checks, transactional inventory (batch locks, FEFO in a transaction), a payment gateway (bKash/Nagad/cards via tokenised flow), SMS/email providers, protected prescription storage with access logs and retention rules, audit logs, scheduled backups, and a regulator-aware workflow for controlled medicines.
 
 ## Tests (optional developer tools)
-`tests/` contains Playwright scripts (`e2e.py`, `e2e2.py`, `loyalty.py`, `audit2.py`, `roles.py`, `v14.py`, `v15.py`, `v16.py`, `v17.py`, `sweep.py`, `axe_audit.py`, `print_receipt.py`) and a jsdom logic suite (`logic-jsdom.js`). Serve the folder on port 8765 and run them with Python (`pip install playwright`) or Node. They are not needed to run the app.
+`tests/` contains Playwright scripts (`e2e.py`, `e2e2.py`, `loyalty.py`, `audit2.py`, `roles.py`, `v14.py`, `v15.py`, `v16.py`, `v17.py`, `v18.py`, `v19.py`, `v20.py`, `axe_palettes.py`, `sweep.py`, `axe_audit.py`, `print_receipt.py`) and a jsdom logic suite (`logic-jsdom.js`). Serve the folder on port 8765 and run them with Python (`pip install playwright`) or Node. They are not needed to run the app.

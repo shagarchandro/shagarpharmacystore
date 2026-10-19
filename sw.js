@@ -1,5 +1,5 @@
 // sw.js: network-first service worker. Online you always get the latest files; offline you get the last copy you visited.
-const C='mc-v1';
+const C='mc-v2';
 const CORE=['index.html','admin/index.html','admin/login.html','assets/css/styles.css','assets/css/admin.css','assets/css/responsive.css','assets/js/utils.js','assets/js/i18n.js','assets/js/storage.js','assets/js/store.js','assets/js/admin.js','assets/icons/favicon.svg','assets/images/logo.svg','manifest.webmanifest'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});

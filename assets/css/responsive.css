@@ -5,3 +5,4 @@
 @media print{.bar,.side,.top,button,.foot{display:none}body.adm{padding:0}}
 @media print{body:has(dialog[open])>*:not(dialog){display:none!important}dialog[open]{position:static;width:100%;max-width:none;border:0;box-shadow:none;margin:0}dialog::backdrop{display:none}body.adm{padding:0}}
 @media(max-width:900px){.foot-grid{grid-template-columns:1fr 1fr}.contact-grid{grid-template-columns:1fr}}@media(max-width:640px){.foot-grid{grid-template-columns:1fr}.orders-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.top{flex-wrap:wrap}.gsearch{order:5;flex-basis:100%;max-width:none}}

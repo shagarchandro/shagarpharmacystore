@@ -49,3 +49,9 @@ Legend: **[auto]** passed in automated Chromium (Playwright) or jsdom runs durin
 - [manual] Print a purchase order and an order history on paper
 - [auto] Shop filters/chips/empty state/in-stock, wishlist count and bulk add, orders filters/details/invoice, help search, contact validation and reference, footer links and responsive stacking (tests/v17.py); axe 0 violations after the refresh
 - [manual] Read the Help and Contact wording with a pharmacist; replace the fictional email, phone and hours with real ones in Settings/Help before any real use
+- [auto] Palettes: default, cycle button, footer and admin pickers, persistence, invalid value fallback, theme-color meta and placeholder images follow the palette (tests/v18.py); axe contrast audit 0 violations for all four palettes in light and dark (tests/axe_palettes.py)
+- [manual] Look at your brand colors and pick or edit a palette; check printed receipts in your chosen palette
+- [auto] Shop name: page titles, header, footer, admin sidebar, login, receipts, manifest; no trace of the old name on storefront pages; older saved data migrates, an owner-chosen name is never overwritten; long name fits a 360 px phone (tests/v19.py)
+- [manual] Check the Bangla spelling you want for the shop name if you need it on signs or receipts (the site shows the English name in both languages)
+- [auto] Admin search (Ctrl+K, role-aware), product filters, bulk price change, sortable tables and Show more, stock ledger/audit CSV, batch recall, pick list, dashboard period, idle logout, permissions table (tests/v20.py); axe 0 violations on the admin tabs
+- [manual] Try a real recall exercise with a batch number from your shelf; decide the right idle-logout time for your counter
