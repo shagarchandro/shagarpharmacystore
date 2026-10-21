@@ -2,7 +2,7 @@
 
 A responsive pharmacy storefront plus admin panel for Shagar Medical Store (demo data is fictional), built with HTML5, CSS3 and vanilla JavaScript (no framework, no build step). Data lives in the browser's LocalStorage.
 
-> **Demo only.** This is not a secure production pharmacy system. See "Limitations" and "Future backend".
+> **Two modes.** Open the pages from any static server for the browser-only demo, or run `python3 server/server.py` for the real server mode (shared database, real logins, server-side checks). See "Real server mode".
 
 ## Requirements
 Any modern browser and a local static server (VS Code Live Server, `python3 -m http.server`, etc.). Pages must be served over HTTP, not opened as `file://`.
@@ -62,6 +62,56 @@ Products CSV import (template download, validation, preview, duplicate SKU/barco
 
 **Admin power tools (v20):** a global search in the top bar (also Ctrl+K) that finds orders, products, customers and batches and opens the right screen already filtered (it only shows areas the signed-in role may open); a Products screen with search, category, type and low-stock filters plus a Bulk price change tool (±50–100%, previewed, confirmed and audited); every table has sortable column headers and a Show more button after 25 rows; **Ledger & recall** with a filterable stock ledger, the audit trail (both exportable to CSV) and a **batch recall** lookup that lists every online order and POS sale that received units from a batch, printable (online orders placed from now on carry their order number in the stock log; older ones show as "order"); a **Pick list** per order naming the exact batches to pull; dashboard period comparison (7 or 30 days, change vs the previous period, average basket); automatic logout after inactivity (Settings, default 30 minutes, 0 = off); and a Roles and permissions table in Users. Roles and logout are enforced in the browser only and are not real security.
 
+## Real server mode (works like a real site)
+
+The project runs in **two modes** with the same pages:
+
+| | Demo mode | **Real server mode** |
+|---|---|---|
+| Start with | any static server (Live Server) | `python3 server/server.py` |
+| Data lives in | each browser's LocalStorage | a shared **SQLite database** on the server |
+| Staff login | demo code `demo` (not security) | **real accounts**, hashed passwords, server sessions |
+| Customer orders | stay in that browser | reach the pharmacy panel on any device |
+| Prices, stock, totals | computed in the browser | **computed and checked on the server** |
+
+### Start it
+```
+python3 server/server.py                      # http://127.0.0.1:8000/
+python3 server/server.py --port 8080 --no-demo   # empty shop, no demo products
+```
+Python 3.9+ only; nothing to install. On the first run it creates `server/data/shop.db` and prints the first staff login (`owner` plus a random password, shown once). You must choose your own password at first login. Staff log in at `/admin/login.html`; the Owner creates other accounts under **Users** (each must change its temporary password).
+Options: `--host`, `--port`, `--data DIR`, `--owner-password`, `--secure-cookies`, `--trust-proxy`, `--verbose` (or env `SHAGAR_HOST`, `SHAGAR_PORT`, `SHAGAR_DATA`, `SHAGAR_OWNER_PASSWORD`).
+
+### What the server really does
+- **Accounts and sessions:** PBKDF2-SHA256 hashed passwords, random session tokens stored hashed, HttpOnly + SameSite=Strict cookie, idle and absolute session timeouts (with a "Still there?" warning a minute before sign-out), account lock after 5 wrong attempts, rate limits, password rules (10+ characters, at least two kinds of characters, no common passwords, must not contain the username) with a strength meter, forced change of temporary passwords, deactivation ends sessions immediately.
+- **Two-step login (TOTP):** each staff member can turn on a 6-digit authenticator code (Google/Microsoft Authenticator, Authy…) under **My account**. Codes cannot be replayed, wrong codes count toward the lockout, and 10 one-time recovery codes are issued. Setup uses the typed setup key (no QR code, so no extra library is needed).
+- **My account:** change password, set up two-step login, see every signed-in device (browser, address, last active), sign out one or all other devices, and see recent activity on your own account (including your previous sign-in).
+- **Staff management (Owner):** create staff, edit name/role, reset a password, unlock, reset a lost two-step, sign someone out everywhere, deactivate; the last active Owner is protected.
+- **Security log (Owner):** sign-ins, failures, lockouts, password and role changes, two-step changes, recovery-code use and console resets, with filters and CSV export. Passwords and codes are never written to it.
+- **Lost access:** on the server run `python3 server/server.py --reset-password owner` (new temporary password), `--disable-2fa USER` or `--unlock USER`.
+- **Login page:** remembers where you were going, shows/hides the password, warns about Caps Lock, asks for the authenticator code only when needed, and never says whether the username or the password was wrong.
+- **Customers:** the catalog never exposes cost prices; checkout sends only item ids and quantities; the server recomputes prices, discounts, coupon, delivery fee, deducts stock by first-expiry-first-out inside a database transaction (two shoppers cannot oversell the last units), enforces the prescription rules and numbers the order. Orders are looked up only with order number + mobile number; customers can cancel (stock returns) or request a return.
+- **Staff changes are validated on the server:** each role may write only its own data sets; order totals/items/addresses cannot be edited by anyone; prescription orders can only be released by a pharmacist or owner; stock may change only together with a matching stock-log entry; POS sales must use the real current prices and deduct stock; sales, logs, audit and refunds are append-only; invalid prices/dates/quantities are refused; stale edits from another device are refused (409) instead of overwriting.
+- **Shared and live:** the admin panel refreshes from the server every 15 seconds, so an order placed on a customer's phone appears on the counter computer.
+- **Files:** the server serves only the website files (never `server/`, `tests/`, the database or `.md/.py` files) and sends security headers (CSP, nosniff, frame denial).
+- **Backups:** Admin -> Data -> Export JSON downloads everything; Import restores it (the server first keeps a copy of the old database). You can also copy `server/data/shop.db` while the server is stopped.
+
+### Put it on the internet safely
+1. Run the server on a small VPS or office PC, bound to `127.0.0.1`.
+2. Put **HTTPS** in front (Caddy or Nginx reverse proxy with a free Let's Encrypt certificate), and start the server with `--secure-cookies --trust-proxy`.
+3. Open only ports 80/443; keep the operating system updated; make regular copies of `server/data/shop.db`.
+4. Replace the demo address, phone, email and opening hours with the real ones (Admin -> Settings and the Contact page text).
+
+### What is still NOT real (needs outside services or your decisions)
+- **Payments:** only cash on delivery works; the bKash choice is a label. A real gateway needs a merchant account and its API.
+- **SMS / email / push notifications:** not connected (staff see in-app notifications only).
+- **Password-reset by email/SMS:** not available (no mail/SMS service); the Owner resets staff passwords, and the server console resets the Owner.
+- **Customer accounts and phone verification:** customers are identified by order number + mobile number. Because the phone is not verified (no SMS OTP), **loyalty-point redemption is switched off online** and works only at the counter.
+- **Single-machine database:** SQLite on one server is fine for a shop; it is not a clustered system.
+- **Staff can read all business data** (not only their own screens); only writing is restricted per role.
+- The CSP still allows inline scripts, and the pages use one blocking request at start-up (kept for simplicity).
+- Legal/regulatory duties for selling medicines (licences, prescription records, controlled drugs) are yours to confirm.
+
 ## Data, backup and reset
 Everything is stored under the LocalStorage key `mc_db`. Admin → Data: **Export JSON** (backup), **Import JSON** (validated, with a preview and confirmation), **Reset to demo data** (confirmation). Clearing browser data also removes the demo data.
 
@@ -79,4 +129,4 @@ Upload the whole folder to any static host (GitHub Pages, Netlify, Cloudflare Pa
 Use a server and database (e.g. PostgreSQL) with: real authentication (hashed credentials, MFA for staff), server-side role checks, transactional inventory (batch locks, FEFO in a transaction), a payment gateway (bKash/Nagad/cards via tokenised flow), SMS/email providers, protected prescription storage with access logs and retention rules, audit logs, scheduled backups, and a regulator-aware workflow for controlled medicines.
 
 ## Tests (optional developer tools)
-`tests/` contains Playwright scripts (`e2e.py`, `e2e2.py`, `loyalty.py`, `audit2.py`, `roles.py`, `v14.py`, `v15.py`, `v16.py`, `v17.py`, `v18.py`, `v19.py`, `v20.py`, `axe_palettes.py`, `sweep.py`, `axe_audit.py`, `print_receipt.py`) and a jsdom logic suite (`logic-jsdom.js`). Serve the folder on port 8765 and run them with Python (`pip install playwright`) or Node. They are not needed to run the app.
+`tests/` contains Playwright scripts (`server_api.py`, `server_e2e.py` and `server_admin_flows.py`, `server_login_ui.py` and `server_ratelimit.py` for the real server, run with `sh tests/run_server_tests.sh`; `e2e.py`, `e2e2.py`, `loyalty.py`, `audit2.py`, `roles.py`, `v14.py`, `v15.py`, `v16.py`, `v17.py`, `v18.py`, `v19.py`, `v20.py`, `axe_palettes.py`, `sweep.py`, `axe_audit.py`, `print_receipt.py`) and a jsdom logic suite (`logic-jsdom.js`). Serve the folder on port 8765 and run them with Python (`pip install playwright`) or Node. They are not needed to run the app.
