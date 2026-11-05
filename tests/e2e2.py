@@ -1,4 +1,6 @@
 # Real-browser tests for v10 features. Serve the project on port 8765 first.
+import base64
+open('/tmp/px.png','wb').write(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='))
 from playwright.sync_api import sync_playwright
 B='http://localhost:8765/';res=[]
 def ok(c,m): res.append(('PASS ' if c else 'FAIL ')+m)

@@ -1,0 +1,22 @@
+# systemd unit (UNTESTED on a real server; adjust paths and user).
+# Install: copy to /etc/systemd/system/shagar.service, then:  systemctl daemon-reload && systemctl enable --now shagar
+[Unit]
+Description=Shagar Medical Store server
+After=network.target
+
+[Service]
+User=shagar
+Group=shagar
+WorkingDirectory=/opt/shagar
+ExecStart=/usr/bin/python3 /opt/shagar/server/server.py --host 127.0.0.1 --port 8000 --secure-cookies --trust-proxy
+Restart=on-failure
+RestartSec=3
+# basic hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/shagar/server/data
+
+[Install]
+WantedBy=multi-user.target

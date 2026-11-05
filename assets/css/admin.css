@@ -8,3 +8,13 @@ th.sortable{cursor:pointer;user-select:none}th.sortable:hover{background:color-m
 .grid+.grid,.grid+div>.grid,div>.grid+.grid{margin-top:1rem}
 .codes{columns:2;list-style:none;padding:0}.codes li{padding:.2rem 0}code.key{font-size:1.15rem;letter-spacing:.08em;background:var(--mint);padding:.2rem .5rem;border-radius:6px;word-break:break-all}
 .card+.card,.card+form.card,form.card+.card{margin-top:1rem}form.card{max-width:none}
+.login .brand{display:flex;gap:.7rem;align-items:center;margin:.2rem 0 .6rem}.login .brand .logo{font-size:2rem;line-height:1;width:3rem;height:3rem;display:grid;place-items:center;border-radius:14px;background:var(--mint)}.login .brand b{display:block;font-size:1.05rem}.login .greet{color:var(--mut)}
+.login form{display:grid;gap:.45rem}.login input:not([type=checkbox]),.login select{width:100%}.login .btn{width:100%;margin-top:.4rem}.login .btn[disabled]{opacity:.7;cursor:progress}
+.login input[aria-invalid=true]{border-color:#b42318;outline:2px solid #b42318}.login .linkbtn{background:none;border:0;padding:0;color:var(--pri);text-decoration:underline;cursor:pointer;justify-self:start;font:inherit}
+.login .tips{margin:.8rem 0;border-top:1px solid var(--br);padding-top:.6rem}.login .tips ul{margin:.4rem 0 0;padding-left:1.1rem}.login .tips li{margin:.2rem 0}
+@media (max-width:480px){.login{margin:3vh .6rem;padding:1.2rem;border-radius:18px}}
+.login .greet{display:block;font:400 .9rem/1.3 system-ui,sans-serif;color:var(--mut)}.login .brand b{font-family:system-ui,sans-serif}
+
+.top .crumb{color:var(--mut);font-weight:500;max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top .clock,.top .conn,.top .chip{font-size:.85rem;color:var(--mut);white-space:nowrap}.top .conn.off{color:#b42318;font-weight:700}
+@media (max-width:700px){.top .clock,.top .chip,.top .crumb{display:none}}

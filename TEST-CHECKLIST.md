@@ -62,6 +62,69 @@ Legend: **[auto]** passed in automated Chromium (Playwright) or jsdom runs durin
 - [auto] 37 further browser checks (tests/server_admin_flows.py) push every other admin screen through the server's validation: purchase orders (receive, purchase return), suppliers, expired-stock write-off, damaged-stock adjustment, direct batch receiving, stocktake, POS sale and refund, a full order life-cycle (confirm, process, pack, rider, ship, deliver, return, restock, refund) with history, expenses, shift closing, product add/edit/delete, category rename, customer edit and block (blocked customers cannot order), settings, coupons, ledger, demo reset disabled, data intact after reload
 - [auto] 29 further API checks inside tests/server_api.py for the login system: password rules, two-step setup/enable/login, replay and single-use protection, recovery codes, device list and sign-out, security log contents (no passwords), role-change and unlock/reset flows, lockout, last-owner protection, server-console password reset; 2 rate-limit checks (tests/server_ratelimit.py)
 - [auto] 32 real-browser checks (tests/server_login_ui.py): redirect back after login, show/hide password, Caps Lock warning, forgot-password help, remembered username, strength meter, password change, two-step setup with recovery codes, login with code and with a recovery code, device list and "sign out all other devices", staff edit/unlock/reset two-step, security log and CSV, idle warning; axe contrast/accessibility audit of login, My account, Users and Security log in light and dark: 0 violations
+- [auto] 25 further API checks (tests/server_api.py): role-limited data (delivery gets only orders and settings; cashier gets no supplier/purchase/note/audit data), costs hidden from cashier and pharmacist yet preserved on the server, server-filled sale costs, polling with limited views, backups (create, list, download as a real SQLite file, owner-only, no path tricks, automatic backup), health check, gzip, ETag/304, friendly 404, robots.txt, deploy files not served
+- [auto] 14 real-browser checks (tests/server_roles_ui.py): delivery staff, pharmacist, cashier and inventory manager each still do their jobs with the limited data (shipping, Rx approval, POS sale, cashbook, purchasing), and cost/profit figures appear only where allowed
+- [auto] 33 API checks (tests/server_features.py): delivery-time choice, minimum order, free-delivery threshold, pausing online orders and the public notice, invalid settings refused, waiting list (in-stock refused, duplicates merged, cashiers not sent it), prescription images (consent needed, real file-type check, size limit, ignored on non-prescription orders, only referenced on the order, owner/pharmacist only, never cached, view logged, not served as files) and automatic deletion after the retention period
+- [auto] 22 real-browser checks (tests/server_features_ui.py) and 11 demo-mode checks (tests/v22.py): notice and paused banners, disabled checkout, free-delivery hints, delivery-time select, other-brands box, waiting-list form and staff list, prescription upload with consent and fake-image refusal, the pharmacist's image viewer, one-click purchase orders, bulk status change with prescription skipping, combined pick lists, Settings store controls; axe audit of 20 new/changed screens in light and dark: 0 violations
+- [auto] 8 more API checks in tests/server_features.py (customer data export and erasure: owner only, needs the word ERASE, no trace of the number/name/waiting entry left, totals kept, old number cannot open the order, logged without the full number); 4 checks in tests/csp_sweep.py (strict policy header; no console or policy error on any of 19 storefront pages, 23 admin screens and the redirect); 8 checks in tests/load_check.py (see the README for the numbers)
+- [manual] Upload a real phone photo as a prescription and open it as the pharmacist; confirm your retention period with your own legal advice
 - [manual] Try two-step login with your own phone's authenticator app; test the server-console password reset on your real server
 - [manual] Run behind HTTPS with --secure-cookies; test from a real phone on your network; try a failed power cut (restart the server and check orders are still there)
 - [not run] Load testing, Windows/macOS server hosting, long-running (days) stability
+
+
+## v1.3.0 add-ons (manual check)
+- [ ] Shop: tick ⚖ on 2-3 cards, open Compare; the 4th product is refused; Clear empties it.
+- [ ] Open two products, return to Shop: *Recently viewed* shows them; Clear removes them.
+- [ ] Product page: Share copies/opens a link; WhatsApp link opens a chat with the product name.
+- [ ] Health: BMI 170 cm / 70 kg gives 24.2; add a reminder one minute ahead and see the message; in Bangla the page title reads স্বাস্থ্য টুলস.
+- [ ] Admin (Owner): Insights, Refill follow-ups, Shelf labels open; Pharmacist sees only Refill; Inventory Manager only Shelf labels; Cashier none.
+- [ ] Print one shelf label and scan it with your real barcode scanner.
+
+## v1.4.0 add-ons (manual check)
+- [ ] Dashboard: set a daily target, see the progress bar, press Copy day summary and paste it somewhere.
+- [ ] Expiry planner: change the window; expired batches are listed separately; CSV downloads.
+- [ ] Margin analysis: a product priced below cost is flagged; Pharmacist and Cashier do not see this tab.
+- [ ] Supplier orders: edit the text, Copy message, open WhatsApp for a supplier with a phone number.
+- [ ] Price list: print preview groups products by category.
+- [ ] Storefront: the header shows Open now / Closed now; Copy cart link opens the shared cart in a private window and adds the items.
+
+## v1.5.0 login and staff (manual check)
+- [ ] Log in with Remember unchecked, open the login page again: the username box is empty. Check it, log in, open again: pre-filled.
+- [ ] Switch language on the login page: labels turn Bangla.
+- [ ] Log in from a second device or network: the notice about a new address appears; the security log shows the new event.
+- [ ] Owner > Users: the overview lists every account; lock, unlock and reset still work as before.
+- [ ] My account: Suggest a password gives a 16-character password; Copy works.
+- [ ] On the server: python3 server/server.py --list-staff prints the accounts.
+
+## v1.6.0 (manual check)
+- [ ] Admin: Ctrl+K still focuses the admin search box.
+- [ ] Customer lookup: search a phone number, open the customer, check totals against Orders.
+- [ ] Shop: press A+ twice, reload: size stays; open the admin: same size. Tap 🎤 and say a medicine name (Chrome/Android).
+
+## v1.7.0 sign-in policy (manual check, on a test copy)
+- [ ] Turn on your own two-step login, then Settings > Sign-in policy > require for Owner and Pharmacists. A Pharmacist without it sees only My account until set up.
+- [ ] Set hours that exclude now: a Cashier cannot sign in (clear message), the Owner can. Restore the hours.
+- [ ] Devices limit 1: sign in on a second device; the first one is signed out.
+- [ ] Password max age 30: an account with an old password is asked to choose a new one at sign-in.
+- [ ] Security log shows the new events.
+
+## v1.8.0 login page (manual check)
+- [ ] Phone-width login page: nothing is cut off, no sideways scrolling.
+- [ ] Wrong password: message appears, password box is cleared and focused. Five wrong tries: the button counts down before it can be used again.
+- [ ] Account with two-step: after the password, the code box appears; typing 6 digits signs in.
+- [ ] Switch to Bangla: header, labels and tips are Bangla. Turn off Wi-Fi: the offline notice appears.
+
+## v1.9.0 real login and navbar (manual check)
+- [ ] Delete server/data (on a copy), start with start-server.bat/.sh: the window shows a setup code; the login page asks for it and creates the Owner.
+- [ ] Open the login page from another computer before finishing setup: it needs the code; a wrong code is refused.
+- [ ] Phone: the menu button opens and closes the links; the current page is highlighted; "/" focuses search on a computer.
+- [ ] Admin top bar shows the screen name, the time and Online/Offline.
+
+## v2.0.0 storefront sections (manual check)
+- [ ] Shop: switch to List and back; open Quick view and add to cart; search a misspelled medicine and use a suggestion.
+- [ ] Wishlist: save two items, press Share wishlist, open the link in a private window and save it there.
+- [ ] Orders: press "Need help with this order": the contact form has the order number.
+- [ ] Contact: the form remembers a half-written message after a reload and clears it after sending.
+- [ ] Health: log a blood pressure of 150/95 (flagged), a normal one, see the chart; export the CSV; try the water tracker and the printed schedule.
+- [ ] Have a pharmacist or doctor read the wording of the health ranges before showing them to real customers.

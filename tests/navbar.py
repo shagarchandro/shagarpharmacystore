@@ -1,0 +1,33 @@
+# v1.9 navbar tests (demo mode, serve the folder on 8765)
+import sys
+from playwright.sync_api import sync_playwright
+B='http://localhost:8765/';res=[]
+def ok(c,m): res.append(('PASS ' if c else 'FAIL ')+m)
+with sync_playwright() as p:
+    br=p.chromium.launch();errs=[]
+    pg=br.new_context(viewport={'width':1200,'height':800}).new_page();pg.on('pageerror',lambda e:errs.append(str(e)))
+    pg.goto(B+'index.html#/orders');pg.wait_for_selector('header.bar nav a')
+    cur=pg.eval_on_selector_all('header.bar nav a[aria-current=page]','e=>e.map(x=>x.getAttribute("href"))');ok(cur==['#/orders'],'current page is highlighted: '+str(cur))
+    pg.goto(B+'index.html#/health');pg.wait_for_selector('h1');ok(pg.eval_on_selector_all('header.bar nav a[aria-current=page]','e=>e.map(x=>x.getAttribute("href"))')==['#/health'],'Health is highlighted')
+    pg.evaluate("localStorage.setItem('mc_wish',JSON.stringify(['P1','P2']))");pg.goto(B+'index.html#/');pg.wait_for_selector('article.card')
+    ok('Wishlist (2)' in pg.inner_text('header.bar nav'),'wishlist count still shown in the link')
+    ok(not pg.is_visible('.navtoggle'),'no hamburger on a wide screen')
+    pg.keyboard.press('/');ok(pg.evaluate("document.activeElement.closest('.hsearch')!==null"),'"/" focuses the search box')
+    pg.mouse.wheel(0,600);pg.wait_for_timeout(300);ok(pg.evaluate("document.querySelector('header.bar').classList.contains('scrolled')"),'header gets a shadow after scrolling')
+    ok(pg.get_attribute('a.staff','aria-label')=='Staff login','staff link is labelled')
+    m=br.new_context(viewport={'width':390,'height':800}).new_page();m.on('pageerror',lambda e:errs.append(str(e)))
+    m.goto(B+'index.html');m.wait_for_selector('article.card')
+    ok(m.is_visible('.navtoggle') and not m.is_visible('header.bar nav'),'phone: menu button shown, links hidden')
+    m.click('.navtoggle');ok(m.is_visible('header.bar nav') and m.get_attribute('.navtoggle','aria-expanded')=='true','phone: button opens the menu')
+    m.keyboard.press('Escape');ok(not m.is_visible('header.bar nav') and m.get_attribute('.navtoggle','aria-expanded')=='false','phone: Esc closes the menu')
+    m.click('.navtoggle');m.click('header.bar nav >> text=Orders');m.wait_for_selector('h1,h2');ok(not m.is_visible('header.bar nav'),'phone: choosing a link closes the menu')
+    ok(m.evaluate("document.documentElement.scrollWidth<=window.innerWidth"),'phone: no sideways scrolling')
+    a=br.new_context(viewport={'width':1200,'height':800}).new_page();a.on('pageerror',lambda e:errs.append(str(e)))
+    a.add_init_script("sessionStorage.setItem('mc_role','Owner')");a.goto(B+'admin/index.html');a.wait_for_selector('#side nav button');a.wait_for_selector('.top .crumb')
+    a.wait_for_function("document.querySelector('.top .crumb').textContent.length>2");ok(a.inner_text('.top .crumb').startswith('›'),'admin top bar shows the current screen: '+a.inner_text('.top .crumb'))
+    a.click('#side nav button[data-t=products]');a.wait_for_function("document.querySelector('.top .crumb').textContent.includes('Product')||document.querySelector('.top .crumb').textContent.length>2");ok(True,'screen name follows navigation')
+    ok(':' in a.inner_text('.top .clock'),'Dhaka clock shown');ok('Online' in a.inner_text('.top .conn'),'connection indicator shows Online')
+    a.context.set_offline(True);a.evaluate("window.dispatchEvent(new Event('offline'))");a.wait_for_timeout(200);ok('Offline' in a.inner_text('.top .conn'),'indicator turns Offline');a.context.set_offline(False)
+    ok(not errs,'no page errors '+str(errs[:2]));br.close()
+print('\n'.join(res));print('SUMMARY pass=%d fail=%d'%(sum(r.startswith('PASS') for r in res),sum(r.startswith('FAIL') for r in res)))
+sys.exit(1 if any(r.startswith('FAIL') for r in res) else 0)

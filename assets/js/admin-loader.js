@@ -1,0 +1,2 @@
+// admin-loader.js: open the admin app only for a signed-in person, otherwise go to the login page and come back afterwards
+if(SERVER?ME:sessionStorage.getItem('mc_role')){const e=document.createElement('script');e.src='../assets/js/admin-extras.js';const load=()=>{const s=document.createElement('script');s.src='../assets/js/admin.js';document.body.append(s)};e.onload=load;e.onerror=load;document.body.append(e)}else location.replace('login.html?next='+encodeURIComponent(location.pathname.split('/').pop()+location.hash));

@@ -11,16 +11,17 @@ What is NOT included: payment gateways, SMS/email, HTTPS (put a reverse proxy
 in front for HTTPS), phone-number verification for customers.
 """
 import argparse, base64, hashlib, hmac, http.server, json, mimetypes, os, re, secrets, shutil, sqlite3
-import sys, threading, time, traceback, urllib.parse
+import gzip, logging, logging.handlers, sys, threading, time, traceback, urllib.parse
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
+VERSION = '2.0.0'
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SEED = os.path.join(HERE, 'seed.json')
 
 COLLS = ['products', 'batches', 'orders', 'sales', 'coupons', 'suppliers', 'log', 'expenses', 'notes', 'audit',
-         'purchases', 'refunds', 'shifts', 'cust', 'messages', 'loyalty', 'settings']
+         'purchases', 'refunds', 'shifts', 'cust', 'messages', 'loyalty', 'waitlist', 'settings']
 DICT_COLLS = {'cust', 'loyalty', 'settings'}
 STATUS = ['Pending', 'Confirmed', 'Prescription Review', 'Processing', 'Packed', 'Shipped', 'Delivered',
           'Cancelled', 'Return Requested', 'Returned', 'Refunded']
@@ -29,14 +30,44 @@ STATUS_OK = {'Cashier': ['Pending', 'Confirmed', 'Processing', 'Packed'],
 ROLES = ['Owner', 'Pharmacist', 'Cashier', 'Inventory Manager', 'Delivery Staff']
 WRITE = {
     'Owner': set(COLLS) - {'messages'},
-    'Pharmacist': {'orders', 'batches', 'log', 'notes', 'audit', 'refunds', 'sales', 'loyalty'},
-    'Cashier': {'orders', 'batches', 'log', 'sales', 'loyalty', 'shifts', 'expenses', 'audit'},
-    'Inventory Manager': {'products', 'batches', 'log', 'purchases', 'suppliers', 'expenses', 'audit', 'notes', 'orders'},
-    'Delivery Staff': {'orders', 'audit'},
+    'Pharmacist': {'orders', 'batches', 'log', 'notes', 'audit', 'refunds', 'sales', 'loyalty', 'waitlist'},
+    'Cashier': {'orders', 'batches', 'log', 'sales', 'loyalty', 'shifts', 'expenses'},
+    'Inventory Manager': {'products', 'batches', 'log', 'purchases', 'suppliers', 'expenses', 'audit', 'notes', 'orders', 'waitlist'},
+    'Delivery Staff': {'orders'},
 }
+# What each role may READ (a superset of what it may write). Anything else is simply not sent to that role.
+READ = {
+    'Owner': set(COLLS),
+    'Pharmacist': {'products', 'batches', 'orders', 'sales', 'notes', 'log', 'audit', 'refunds', 'loyalty', 'suppliers', 'purchases', 'settings', 'waitlist'},
+    'Cashier': {'products', 'batches', 'orders', 'sales', 'loyalty', 'shifts', 'expenses', 'refunds', 'log', 'settings'},
+    'Inventory Manager': {'products', 'batches', 'orders', 'sales', 'log', 'audit', 'purchases', 'suppliers', 'expenses', 'notes', 'settings', 'waitlist'},
+    'Delivery Staff': {'orders', 'settings'},
+}
+COST_ROLES = {'Owner', 'Inventory Manager'}  # only these see purchase/cost prices
+
+
+def view_for(role, data, vers):
+    keep = READ.get(role, set())
+    out = {c: data[c] for c in COLLS if c in keep and c in data}
+    v = {c: vers[c] for c in COLLS if c in keep and c in vers}
+    if role not in COST_ROLES:
+        if 'products' in out:
+            out['products'] = [{k: x for k, x in p.items() if k != 'cost'} for p in out['products']]
+        if 'batches' in out:
+            out['batches'] = [{k: x for k, x in b.items() if k != 'cost'} for b in out['batches']]
+        if 'sales' in out:
+            out['sales'] = [dict(s, items=[{k: x for k, x in it.items() if k != 'cost'} for it in s.get('items', [])]) for s in out['sales']]
+    return out, v
 DEFAULT_SETTINGS = {'store': 'Shagar Medical Store', 'logoText': 'Shagar Medical Store', 'address': 'Dhanmondi, Dhaka',
                     'phone': '01700-000000', 'receiptFooter': 'Thank you. Keep this receipt for returns.',
-                    'defReorder': 20, 'idleMin': 30, 'invoice': 'INV', 'feeDhaka': 60, 'feeOut': 120, 'expiryDays': 60}
+                    'defReorder': 20, 'idleMin': 30, 'invoice': 'INV', 'feeDhaka': 60, 'feeOut': 120, 'expiryDays': 60,
+                    'onlineOrders': True, 'notice': '', 'freeDeliveryMin': 0, 'minOrder': 0, 'rxRetentionDays': 30,
+                    # sign-in policy (all off by default; only the Owner can change these)
+                    'req2fa': '', 'hoursOn': False, 'hoursFrom': 8, 'hoursTo': 22, 'maxSessions': 0, 'pwMaxDays': 0}
+SLOTS = ['As soon as possible', 'Today 5-9 pm', 'Tomorrow 9 am-1 pm', 'Tomorrow 5-9 pm']
+MAX_RX = 3_000_000
+RX_EXT = {'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp'}
+RX_DIR = None
 PAY_OK = ['Cash on delivery', 'bKash (demo, not connected)']
 PHONE_RE = re.compile(r'^(\+?88)?01[3-9]\d{8}$')
 LOCK = threading.RLock()
@@ -44,6 +75,8 @@ ARGS = None
 DB_PATH = None
 RL = defaultdict(deque)
 RATE_SCALE = 1.0
+BACKUP_DIR = None
+LOG = logging.getLogger('shagar')
 
 
 class ApiError(Exception):
@@ -97,7 +130,7 @@ CREATE TABLE IF NOT EXISTS sessions(th TEXT PRIMARY KEY, staff_id INTEGER NOT NU
 CREATE TABLE IF NOT EXISTS security_log(id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, user TEXT, event TEXT NOT NULL, ip TEXT, detail TEXT);
 '''
 MIGRATIONS = {'staff': [('totp_secret', 'TEXT'), ('totp_pending', 'TEXT'), ('totp_enabled', 'INTEGER NOT NULL DEFAULT 0'), ('recovery', 'TEXT'),
-                        ('totp_last', 'INTEGER NOT NULL DEFAULT 0'), ('last_login', 'TEXT'), ('last_ip', 'TEXT'), ('prev_login', 'TEXT'), ('prev_ip', 'TEXT')],
+                        ('totp_last', 'INTEGER NOT NULL DEFAULT 0'), ('last_login', 'TEXT'), ('last_ip', 'TEXT'), ('prev_login', 'TEXT'), ('prev_ip', 'TEXT'), ('pw_changed', 'TEXT')],
               'sessions': [('ip', 'TEXT'), ('ua', 'TEXT')]}
 
 
@@ -155,6 +188,10 @@ def check_pw(pw, salt_b64, h_b64):
     return hmac.compare_digest(base64.b64encode(h).decode(), h_b64)
 
 
+SETUP = {'code': None}
+RANDOM_OWNER = False
+
+
 def init_db(demo, owner_pw):
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = db()
@@ -180,7 +217,7 @@ def init_db(demo, owner_pw):
                     conn.execute('INSERT OR REPLACE INTO kv(coll,data,version) VALUES(?,?,1)', (c, json.dumps(data[c])))
                 meta_set(conn, 'seeded', '1')
                 meta_set(conn, 'order_seq', '1000')
-            if conn.execute('SELECT COUNT(*) AS n FROM staff').fetchone()['n'] == 0:
+            if conn.execute('SELECT COUNT(*) AS n FROM staff').fetchone()['n'] == 0 and (owner_pw or RANDOM_OWNER):
                 forced = owner_pw is None
                 pw = owner_pw or secrets.token_urlsafe(10)
                 salt, h = hash_pw(pw)
@@ -381,8 +418,7 @@ def v_sales(role, old_sales, new_sales, products, new_log, old_log):
                 bad(f'Sale {no}: invalid quantity')
             if it.get('price') != eff(p):
                 bad(f"Sale {no}: the price of {p['name']} must be {eff(p)}")
-            if it.get('cost') != p['cost']:
-                bad(f"Sale {no}: invalid cost for {p['name']}")
+            it['cost'] = p['cost']
             total += it['qty'] * it['price']
             per[p['id']] += it['qty']
             rx = rx or bool(p.get('rx'))
@@ -414,6 +450,21 @@ def v_append_only(name, old, new):
     return new
 
 
+REQ2FA = {'': set(), 'owner': {'Owner'}, 'owner_pharmacist': {'Owner', 'Pharmacist'}, 'all': set(ROLES)}
+
+
+def dhaka_hour():
+    return (datetime.now(timezone.utc) + timedelta(hours=6)).hour
+
+
+def hours_ok(st, role):
+    """Staff sign-in window (Dhaka time). The Owner is never restricted. A window like 20 to 6 spans midnight."""
+    if role == 'Owner' or not st.get('hoursOn'):
+        return True
+    a, b, hr = st.get('hoursFrom', 8), st.get('hoursTo', 22), dhaka_hour()
+    return a <= hr < b if a < b else (hr >= a or hr < b)
+
+
 def v_settings(s):
     if not isinstance(s, dict):
         bad('Invalid settings')
@@ -423,11 +474,26 @@ def v_settings(s):
     if not re.fullmatch(r'[A-Za-z0-9-]{2,8}', str(s.get('invoice', 'INV'))):
         bad('Invoice prefix must be 2-8 letters, digits or dashes')
     out['invoice'] = s.get('invoice', 'INV')
-    for k, lo, hi in (('feeDhaka', 0, 10000), ('feeOut', 0, 10000), ('expiryDays', 1, 3650), ('defReorder', 0, 100000), ('idleMin', 0, 240)):
+    out['onlineOrders'] = bool(s.get('onlineOrders', True))
+    notice = s.get('notice', '')
+    if not isinstance(notice, str) or len(notice) > 200:
+        bad('The notice must be at most 200 characters')
+    out['notice'] = notice.strip()
+    for k, lo, hi in (('feeDhaka', 0, 10000), ('feeOut', 0, 10000), ('expiryDays', 1, 3650), ('defReorder', 0, 100000), ('idleMin', 0, 240),
+                      ('freeDeliveryMin', 0, 1000000), ('minOrder', 0, 1000000), ('rxRetentionDays', 0, 365),
+                      ('hoursFrom', 0, 23), ('hoursTo', 1, 24), ('maxSessions', 0, 10), ('pwMaxDays', 0, 365)):
         v = s.get(k, DEFAULT_SETTINGS[k])
         if not isnum(v) or not lo <= v <= hi:
             bad(f'{k} must be between {lo} and {hi}')
         out[k] = v
+    if s.get('req2fa', '') not in REQ2FA:
+        bad('Invalid two-step policy')
+    out['req2fa'] = s.get('req2fa', '')
+    out['hoursOn'] = bool(s.get('hoursOn', False))
+    if 0 < out['pwMaxDays'] < 30:
+        bad('Password maximum age must be 0 (off) or at least 30 days')
+    if out['hoursOn'] and out['hoursFrom'] == out['hoursTo']:
+        bad('Sign-in hours must start and end at different times')
     return out
 
 
@@ -440,6 +506,19 @@ def validate(role, old, changes):
             bad(f'{c} has the wrong type')
         if len(json.dumps(changes[c])) > 8_000_000:
             bad(f'{c} is too large')
+    if role not in COST_ROLES:
+        if isinstance(changes.get('batches'), list):
+            ob = {b['id']: b for b in old['batches']}
+            for b in changes['batches']:
+                if isinstance(b, dict):
+                    b.setdefault('cost', (ob.get(b.get('id')) or {}).get('cost', 0))
+        if isinstance(changes.get('sales'), list):
+            for i, sl in enumerate(changes['sales']):
+                if isinstance(sl, dict) and i < len(old['sales']) and isinstance(sl.get('items'), list):
+                    for j, it in enumerate(sl['items']):
+                        oi = old['sales'][i].get('items', [])
+                        if isinstance(it, dict) and j < len(oi):
+                            it.setdefault('cost', oi[j].get('cost'))
     new = {c: changes.get(c, old[c]) for c in COLLS}
     out = dict(changes)
     product_ids = {p['id'] for p in old['products']}
@@ -481,6 +560,15 @@ def validate(role, old, changes):
         for k, v in changes['cust'].items():
             if not isinstance(v, dict):
                 bad('Invalid customer record')
+    if 'waitlist' in changes:
+        ids = set()
+        for w in changes['waitlist']:
+            if not isinstance(w, dict) or not isinstance(w.get('id'), str) or w['id'] in ids or not isinstance(w.get('pid'), str) \
+                    or not isinstance(w.get('phone'), str) or not isinstance(w.get('contacted', False), bool):
+                bad('Invalid waiting-list entry')
+            ids.add(w['id'])
+        if len(changes['waitlist']) > 5000:
+            bad('The waiting list is too long')
     if 'settings' in changes:
         out['settings'] = v_settings(changes['settings'])
     return out
@@ -505,17 +593,28 @@ class H(http.server.BaseHTTPRequestHandler):
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('X-Frame-Options', 'DENY')
         self.send_header('Referrer-Policy', 'same-origin')
+        self.send_header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+        if ARGS.secure_cookies:
+            self.send_header('Strict-Transport-Security', 'max-age=31536000')
         self.send_header('Content-Security-Policy',
-                         "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
-                         "script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+                         "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; "
+                         "script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
 
-    def send_bytes(self, code, body, ctype, headers=None, nocache=True):
+    def send_bytes(self, code, body, ctype, headers=None, nocache=True, etag=None):
+        headers = dict(headers or {})
+        if len(body) > 1400 and 'gzip' in (self.headers.get('Accept-Encoding') or '') and \
+                (ctype.startswith('text/') or 'json' in ctype or 'svg' in ctype or 'javascript' in ctype):
+            body = gzip.compress(body, 5)
+            headers['Content-Encoding'] = 'gzip'
+        headers['Vary'] = 'Accept-Encoding'
+        if etag:
+            headers['ETag'] = etag
         self.send_response(code)
         self.send_header('Content-Type', ctype)
         self.send_header('Content-Length', str(len(body)))
         self.send_header('Cache-Control', 'no-store' if nocache else 'no-cache')
         self.common_headers()
-        for k, v in (headers or {}).items():
+        for k, v in headers.items():
             self.send_header(k, v)
         self.end_headers()
         if self.command != 'HEAD':
@@ -554,6 +653,10 @@ class H(http.server.BaseHTTPRequestHandler):
                     raise ApiError(403, 'Missing request header')
                 body = self.read_json() if method == 'POST' else None
                 q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
+                if path == '/api/backups/download' and method == 'GET':
+                    return self.download_backup(q)
+                if path == '/api/prescriptions/download' and method == 'GET':
+                    return self.download_rx(q)
                 m = re.fullmatch(r'/api/staff/(\d+)/update', path)
                 fn = ROUTES.get((method, path)) or ((lambda s, q, b: api_staff_update(s, q, b, int(m.group(1)))) if (m and method == 'POST') else None)
                 if not fn:
@@ -568,21 +671,59 @@ class H(http.server.BaseHTTPRequestHandler):
             else:
                 raise ApiError(405, 'Method not allowed')
         except ApiError as e:
-            self.send_json(e.code, dict({'error': e.msg}, **e.extra))
+            if e.code == 404 and not self.path.startswith('/api/') and os.path.isfile(os.path.join(ROOT, '404.html')):
+                page = open(os.path.join(ROOT, '404.html'), 'rb').read().replace(b'</head>', b'<meta name="shagar-server" content="1"></head>', 1)
+                self.send_bytes(404, page, 'text/html; charset=utf-8')
+            else:
+                self.send_json(e.code, dict({'error': e.msg}, **e.extra))
         except (BrokenPipeError, ConnectionResetError):
             pass
         except Exception:
             traceback.print_exc()
+            LOG.exception('Unhandled error for %s %s', method, self.path)
             try:
                 self.send_json(500, {'error': 'Server error'})
             except Exception:
                 pass
 
+    def download_backup(self, q):
+        u = self.session()
+        need_role(u, 'Owner')
+        name = q.get('name', '')
+        if not re.fullmatch(r'(auto|manual)-\d{8}-\d{6}\.db', name) or not os.path.isfile(os.path.join(BACKUP_DIR, name)):
+            raise ApiError(404, 'Backup not found')
+        conn = db()
+        try:
+            seclog(conn, u['username'], 'backup_downloaded', self.ip(), name)
+        finally:
+            conn.close()
+        data = open(os.path.join(BACKUP_DIR, name), 'rb').read()
+        self.send_bytes(200, data, 'application/octet-stream', {'Content-Disposition': f'attachment; filename="{name}"'})
+
+    def download_rx(self, q):
+        u = self.session()
+        need_role(u, 'Owner', 'Pharmacist')
+        no = str(q.get('no') or '')
+        conn = db()
+        try:
+            orders, _ = kvload(conn, 'orders')
+            o = next((x for x in orders if x['no'] == no), None)
+            rf = (o or {}).get('rxFile')
+            if not rf or rf.get('purged'):
+                raise ApiError(404, 'No prescription image for this order')
+            path = os.path.join(RX_DIR, rf['id'] + RX_EXT.get(rf['type'], ''))
+            if not os.path.isfile(path):
+                raise ApiError(404, 'The image is no longer stored')
+            seclog(conn, u['username'], 'prescription_viewed', self.ip(), no)
+        finally:
+            conn.close()
+        self.send_bytes(200, open(path, 'rb').read(), rf['type'], {'Content-Disposition': 'inline'})
+
     # ---- static files
     def static(self, path):
         rel = urllib.parse.unquote(path).lstrip('/')
         parts = [p for p in rel.split('/') if p]
-        if any(p.startswith('.') or p in ('server', 'tests', 'node_modules') for p in parts) or '\x00' in rel:
+        if any(p.startswith('.') or p in ('server', 'tests', 'deploy', 'node_modules') for p in parts) or '\x00' in rel:
             raise ApiError(404, 'Not found')
         full = os.path.realpath(os.path.join(ROOT, *parts))
         if not (full == ROOT or full.startswith(ROOT + os.sep)):
@@ -597,11 +738,20 @@ class H(http.server.BaseHTTPRequestHandler):
             ctype = 'application/manifest+json'
         if full.endswith('.js'):
             ctype = 'text/javascript; charset=utf-8'
+        st = os.stat(full)
+        etag = '"%x-%x"' % (st.st_mtime_ns, st.st_size)
+        if self.headers.get('If-None-Match') == etag:
+            self.send_response(304)
+            self.send_header('ETag', etag)
+            self.send_header('Cache-Control', 'no-cache')
+            self.common_headers()
+            self.end_headers()
+            return
         data = open(full, 'rb').read()
         if full.endswith('.html'):
             data = data.replace(b'</head>', b'<meta name="shagar-server" content="1"></head>', 1)
             ctype = 'text/html; charset=utf-8'
-        self.send_bytes(200, data, ctype, nocache=False)
+        self.send_bytes(200, data, ctype, nocache=False, etag=etag)
 
     # ---- auth
     def session(self, required=True):
@@ -618,7 +768,8 @@ class H(http.server.BaseHTTPRequestHandler):
                     idle = (st.get('idleMin') or 0) * 60 or 8 * 3600
                     now = time.time()
                     if now - r['last_seen'] <= idle and now - r['created'] <= 12 * 3600:
-                        user = {'id': r['id'], 'username': r['username'], 'name': r['name'], 'role': r['role'], 'must_change': bool(r['must_change']), 'totp_enabled': bool(r['totp_enabled']), 'th': th}
+                        user = {'id': r['id'], 'username': r['username'], 'name': r['name'], 'role': r['role'], 'must_change': bool(r['must_change']), 'totp_enabled': bool(r['totp_enabled']), 'th': th,
+                                'must_2fa': r['role'] in REQ2FA.get(st.get('req2fa', ''), set()) and not r['totp_enabled']}
                         if now - r['last_seen'] > 20:
                             conn.execute('UPDATE sessions SET last_seen=? WHERE th=?', (now, th))
                     else:
@@ -627,6 +778,10 @@ class H(http.server.BaseHTTPRequestHandler):
                 conn.close()
         if required and not user:
             raise ApiError(401, 'Please log in')
+        if required and user and user.get('must_2fa'):
+            p = self.path.split('?')[0]
+            if not (p in ('/api/me', '/api/account', '/api/logout', '/api/password') or p.startswith('/api/account/')):
+                raise ApiError(403, 'Your shop requires two-step login. Set it up in My account first.')
         return user
 
 
@@ -642,7 +797,7 @@ def api_ping(h, q, b):
 
 def api_me(h, q, b):
     u = h.session(False)
-    return {'user': {k: u[k] for k in ('username', 'name', 'role', 'must_change', 'totp_enabled')} if u else None}
+    return {'user': {k: u[k] for k in ('username', 'name', 'role', 'must_change', 'totp_enabled', 'must_2fa')} if u else None}
 
 
 def api_catalog(h, q, b):
@@ -663,7 +818,10 @@ def api_catalog(h, q, b):
         pub['nextNo'] = use[0].get('no') if use else None
         out.append(pub)
     keep = ('store', 'logoText', 'address', 'phone', 'invoice', 'feeDhaka', 'feeOut', 'receiptFooter')
-    return {'products': out, 'settings': {k: st.get(k) for k in keep}}
+    pub = {k: st.get(k) for k in keep}
+    for k in ('onlineOrders', 'notice', 'freeDeliveryMin', 'minOrder', 'rxRetentionDays'):
+        pub[k] = st.get(k, DEFAULT_SETTINGS[k])
+    return {'products': out, 'settings': pub, 'slots': SLOTS}
 
 
 def api_coupon(h, q, b):
@@ -710,6 +868,14 @@ def api_order_create(h, q, b):
         want[it['id']] = want.get(it['id'], 0) + it['qty']
     couponc = str(b.get('coupon') or '').strip().upper()
     doc = str(b.get('doc') or '').strip()[:200]
+    slot = str(b.get('slot') or SLOTS[0])
+    if slot not in SLOTS:
+        bad('Choose a delivery time', 400)
+    rxf, rx_bytes, rx_mime, rx_path = b.get('rxFile'), None, None, None
+    if rxf:
+        if not b.get('rxConsent'):
+            bad('Please tick the box that lets the pharmacy keep the prescription image', 400)
+        rx_bytes, rx_mime = decode_rx_image(rxf)
     with LOCK:
         conn = db()
         conn.execute('BEGIN IMMEDIATE')
@@ -718,6 +884,8 @@ def api_order_create(h, q, b):
             batches, _ = kvload(conn, 'batches')
             settings, _ = kvload(conn, 'settings')
             coupons, _ = kvload(conn, 'coupons')
+            if not settings.get('onlineOrders', True):
+                raise ApiError(503, 'Online ordering is paused right now. Please call the pharmacy or try again later.')
             log, _ = kvload(conn, 'log')
             orders, _ = kvload(conn, 'orders')
             notes, _ = kvload(conn, 'notes')
@@ -755,7 +923,10 @@ def api_order_create(h, q, b):
                 if sub < k.get('min', 0):
                     raise ApiError(400, f"This coupon needs an order of at least ৳{k.get('min', 0)}")
                 disc = js_round(sub * k['pct'] / 100)
-            fee = 0 if area == 'pickup' else (settings.get('feeOut', 120) if area == 'out' else settings.get('feeDhaka', 60))
+            if sub < settings.get('minOrder', 0):
+                raise ApiError(400, f"The minimum order is ৳{settings.get('minOrder', 0)}")
+            fmin = settings.get('freeDeliveryMin', 0)
+            fee = 0 if (area == 'pickup' or (fmin > 0 and sub - disc >= fmin)) else (settings.get('feeOut', 120) if area == 'out' else settings.get('feeDhaka', 60))
             status = 'Prescription Review' if rx else 'Pending'
             addr = 'Store pickup' if area == 'pickup' else ', '.join(x for x in (parts['addr'], parts['thana'], parts['district'], parts['division'], parts['post']) if x)
             order = {'id': 'O-' + secrets.token_hex(5), 'no': no, 'at': now, 'customer': name, 'phone': phone, 'addr': addr,
@@ -763,6 +934,14 @@ def api_order_create(h, q, b):
                      'fee': fee, 'loy': 0, 'total': sub - disc + fee,
                      'delivery': 'Store pickup' if area == 'pickup' else 'Home delivery',
                      'hist': [{'s': status, 'at': now, 'by': 'Customer'}]}
+            order['slot'] = '' if area == 'pickup' else slot
+            if rx and rx_bytes:
+                fid = secrets.token_hex(16)
+                rx_path = os.path.join(RX_DIR, fid + RX_EXT[rx_mime])
+                with open(rx_path, 'wb') as fh:
+                    fh.write(rx_bytes)
+                os.chmod(rx_path, 0o600)
+                order['rxFile'] = {'id': fid, 'type': rx_mime, 'size': len(rx_bytes), 'at': now}
             orders.append(order)
             notes.append({'id': 'N-' + secrets.token_hex(4), 'at': now, 'msg': f"New order {no}" + (' – prescription review needed' if rx else ''), 'read': False})
             for c, d in (('batches', batches), ('log', log), ('orders', orders), ('notes', notes)):
@@ -770,10 +949,186 @@ def api_order_create(h, q, b):
             conn.execute('COMMIT')
         except Exception:
             conn.execute('ROLLBACK')
+            if rx_path and os.path.exists(rx_path):
+                os.remove(rx_path)
             raise
         finally:
             conn.close()
     return {'order': order}
+
+
+def decode_rx_image(rxf):
+    if not isinstance(rxf, dict) or not isinstance(rxf.get('data'), str):
+        bad('Invalid prescription image', 400)
+    raw = rxf['data'].split(',', 1)[-1]
+    if len(raw) > MAX_RX * 4 // 3 + 16:
+        bad('The prescription image is too large (max 3 MB)', 400)
+    try:
+        data = base64.b64decode(raw, validate=True)
+    except Exception:
+        bad('Invalid prescription image', 400)
+    if len(data) > MAX_RX or len(data) < 200:
+        bad('The prescription image must be between 200 bytes and 3 MB', 400)
+    if data[:3] == b'\xff\xd8\xff':
+        return data, 'image/jpeg'
+    if data[:8] == b'\x89PNG\r\n\x1a\n':
+        return data, 'image/png'
+    if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+        return data, 'image/webp'
+    bad('Only JPG, PNG or WebP images are accepted', 400)
+
+
+def purge_prescriptions(days=None):
+    """Delete prescription images older than the retention period (settings.rxRetentionDays, 0 = keep)."""
+    with LOCK:
+        conn = db()
+        conn.execute('BEGIN IMMEDIATE')
+        try:
+            st, _ = kvload(conn, 'settings')
+            d = st.get('rxRetentionDays', 30) if days is None else days
+            n = 0
+            if d:
+                cutoff = (datetime.now(timezone.utc) - timedelta(days=d)).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+                orders, _ = kvload(conn, 'orders')
+                for o in orders:
+                    rf = o.get('rxFile')
+                    if rf and not rf.get('purged') and rf.get('at', '') < cutoff:
+                        p = os.path.join(RX_DIR, rf['id'] + RX_EXT.get(rf.get('type'), ''))
+                        if os.path.exists(p):
+                            os.remove(p)
+                        rf['purged'] = True
+                        n += 1
+                if n:
+                    kvstore(conn, 'orders', orders)
+                    seclog(conn, None, 'prescriptions_purged', 'system', f'{n} image(s) older than {d} days')
+            conn.execute('COMMIT')
+            return n
+        except Exception:
+            conn.execute('ROLLBACK')
+            raise
+        finally:
+            conn.close()
+
+
+def api_waitlist(h, q, b):
+    if not rate(h.ip(), 'waitlist', 8, 600):
+        raise ApiError(429, 'Too many requests. Please wait a few minutes.')
+    b = b or {}
+    pid = str(b.get('pid') or '')
+    phone = sanitize_str(b.get('phone'), 20, 1, 'Mobile number')
+    if not PHONE_RE.match(phone):
+        bad('Enter a valid Bangladesh mobile number', 400)
+    name = str(b.get('name') or '').strip()[:60]
+    with LOCK:
+        conn = db()
+        conn.execute('BEGIN IMMEDIATE')
+        try:
+            products, _ = kvload(conn, 'products')
+            batches, _ = kvload(conn, 'batches')
+            wl, _ = kvload(conn, 'waitlist')
+            p = next((x for x in products if x['id'] == pid), None)
+            if not p:
+                raise ApiError(404, 'Product not found')
+            if stock_of(batches, pid) > 0:
+                raise ApiError(409, 'This medicine is in stock now')
+            if not any(w['pid'] == pid and nph(w['phone']) == nph(phone) and not w.get('contacted') for w in wl):
+                if sum(1 for w in wl if nph(w['phone']) == nph(phone) and not w.get('contacted')) >= 10:
+                    raise ApiError(429, 'Too many waiting-list requests for this number')
+                wl.append({'id': 'W-' + secrets.token_hex(4), 'pid': pid, 'name': name, 'phone': phone, 'at': now_iso(), 'contacted': False})
+                kvstore(conn, 'waitlist', wl)
+            conn.execute('COMMIT')
+        except Exception:
+            conn.execute('ROLLBACK')
+            raise
+        finally:
+            conn.close()
+    return {'ok': True}
+
+
+def phone_arg(b_or_q):
+    ph = str((b_or_q or {}).get('phone') or '').strip()
+    if not PHONE_RE.match(ph):
+        bad('Enter a valid Bangladesh mobile number', 400)
+    return ph
+
+
+def api_privacy_export(h, q, b):
+    u = h.session()
+    need_role(u, 'Owner')
+    ph = phone_arg(q)
+    conn = db()
+    try:
+        data = {c: kvload(conn, c)[0] for c in ('orders', 'messages', 'waitlist', 'loyalty', 'cust', 'sales')}
+        out = {'phone': ph, 'exported_at': now_iso(),
+               'orders': [o for o in data['orders'] if nph(o.get('phone')) == nph(ph)],
+               'messages': [m for m in data['messages'] if nph(m.get('phone')) == nph(ph)],
+               'waiting_list': [w for w in data['waitlist'] if nph(w.get('phone')) == nph(ph)],
+               'counter_sales_with_this_number': [s for s in data['sales'] if nph(s.get('phone')) == nph(ph)],
+               'loyalty': {k: v for k, v in data['loyalty'].items() if nph(k) == nph(ph)},
+               'customer_notes': {k: v for k, v in data['cust'].items() if nph(k) == nph(ph)}}
+        seclog(conn, u['username'], 'customer_data_exported', h.ip(), '...' + nph(ph)[-3:])
+        return out
+    finally:
+        conn.close()
+
+
+def api_privacy_erase(h, q, b):
+    u = h.session()
+    need_role(u, 'Owner')
+    ph = phone_arg(b)
+    if (b or {}).get('confirm') != 'ERASE':
+        bad('Type ERASE to confirm', 400)
+    tag = 'erased-' + hashlib.sha256(nph(ph).encode()).hexdigest()[:8]
+    with LOCK:
+        conn = db()
+        conn.execute('BEGIN IMMEDIATE')
+        try:
+            orders, _ = kvload(conn, 'orders')
+            msgs, _ = kvload(conn, 'messages')
+            wl, _ = kvload(conn, 'waitlist')
+            loy, _ = kvload(conn, 'loyalty')
+            cust, _ = kvload(conn, 'cust')
+            sales, _ = kvload(conn, 'sales')
+            notes, _ = kvload(conn, 'notes')
+            n_o = n_m = n_img = 0
+            for o in orders:
+                if nph(o.get('phone')) == nph(ph):
+                    o['customer'], o['phone'], o['addr'], o['doc'] = 'Erased customer', tag, '(removed)', ''
+                    rf = o.get('rxFile')
+                    if rf and not rf.get('purged'):
+                        p = os.path.join(RX_DIR, rf['id'] + RX_EXT.get(rf.get('type'), ''))
+                        if os.path.exists(p):
+                            os.remove(p)
+                        rf['purged'] = True
+                        n_img += 1
+                    n_o += 1
+            refs = set()
+            for m in msgs:
+                if nph(m.get('phone')) == nph(ph):
+                    refs.add(m.get('ref'))
+                    m['name'], m['phone'], m['msg'], m['order'] = '(erased)', tag, '(erased)', ''
+                    n_m += 1
+            for n in notes:
+                if any(r and (' ' + r + ' ') in (' ' + str(n.get('msg', '')) + ' ') for r in refs) or nph(ph) in str(n.get('msg', '')):
+                    n['msg'] = 'Customer message (erased)'
+            wl2 = [w for w in wl if nph(w.get('phone')) != nph(ph)]
+            for k in [k for k in loy if nph(k) == nph(ph)]:
+                del loy[k]
+            for k in [k for k in cust if nph(k) == nph(ph)]:
+                del cust[k]
+            for s_ in sales:
+                if nph(s_.get('phone')) == nph(ph):
+                    s_['phone'] = ''
+            for c, d in (('orders', orders), ('messages', msgs), ('waitlist', wl2), ('loyalty', loy), ('cust', cust), ('sales', sales), ('notes', notes)):
+                kvstore(conn, c, d)
+            seclog(conn, u['username'], 'customer_erased', h.ip(), f"...{nph(ph)[-3:]}: {n_o} order(s), {n_m} message(s), {n_img} image(s), {len(wl) - len(wl2)} waiting-list entr(y/ies)")
+            conn.execute('COMMIT')
+        except Exception:
+            conn.execute('ROLLBACK')
+            raise
+        finally:
+            conn.close()
+    return {'ok': True, 'orders': n_o, 'messages': n_m, 'images': n_img}
 
 
 def find_order(orders, no, phone):
@@ -920,6 +1275,62 @@ def norm_recovery(code):
     return hashlib.sha256(re.sub(r'[\s-]', '', str(code)).upper().encode()).hexdigest()
 
 
+def pw_age_days(r):
+    """Days since the password was last set (falls back to the account creation date)."""
+    try:
+        t = datetime.fromisoformat(str(r['pw_changed'] or r['created']).replace('Z', '+00:00'))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        return max(0, int((datetime.now(timezone.utc) - t).total_seconds() // 86400))
+    except Exception:
+        return 0
+
+
+def needs_setup(conn=None):
+    c = conn or db()
+    try:
+        return c.execute('SELECT COUNT(*) AS n FROM staff').fetchone()['n'] == 0
+    finally:
+        if conn is None:
+            c.close()
+
+
+def api_setup_status(h, q, b):
+    return {'needed': needs_setup()}
+
+
+def api_setup(h, q, b):
+    """First-run Owner creation from the browser. Works only while there are no staff accounts, and needs the
+    one-time setup code that the server prints in its own window (so a stranger who reaches the page first cannot take over)."""
+    ip, b = h.ip(), b or {}
+    if not rate(ip, 'setup', 10, 600):
+        raise ApiError(429, 'Too many attempts. Please wait a few minutes.')
+    username = str(b.get('username') or '').strip().lower()
+    name = str(b.get('name') or '').strip()[:60]
+    pw, code = str(b.get('password') or ''), str(b.get('code') or '').strip()
+    with LOCK:
+        conn = db()
+        try:
+            if not needs_setup(conn) or not SETUP['code']:
+                raise ApiError(409, 'Setup is already done. Please log in.')
+            if not hmac.compare_digest(code.encode(), SETUP['code'].encode()):
+                seclog(conn, None, 'setup_wrong_code', ip)
+                raise ApiError(403, 'The setup code is not correct. It is shown in the server window.')
+            if not re.fullmatch(r'[a-z0-9_.-]{3,30}', username):
+                bad('Username: 3 to 30 letters, digits, dot, dash or underscore', 400)
+            if len(name) < 2:
+                bad('Please enter your name', 400)
+            check_new_password(pw, username)
+            salt, hh = hash_pw(pw)
+            conn.execute('INSERT INTO staff(username,name,role,salt,pw,active,must_change,created,pw_changed) VALUES(?,?,?,?,?,1,0,?,?)',
+                         (username, name, 'Owner', salt, hh, now_iso(), now_iso()))
+            seclog(conn, username, 'owner_created', ip, 'first-run setup')
+            SETUP['code'] = None
+        finally:
+            conn.close()
+    return {'ok': True}
+
+
 def api_login(h, q, b):
     ip = h.ip()
     b = b or {}
@@ -967,15 +1378,35 @@ def api_login(h, q, b):
                     seclog(conn, username, 'recovery_code_used', ip, f'{len(rec)} left')
                 else:
                     fail('login_wrong_code', 'That code is not right')
+        pol, _ = kvload(conn, 'settings')
+        if not hours_ok(pol, r['role']):
+            seclog(conn, username, 'login_outside_hours', ip)
+            raise ApiError(403, f"Staff sign-in is allowed only between {pol.get('hoursFrom', 8)}:00 and {pol.get('hoursTo', 22)}:00 (Dhaka time). Ask the Owner if you need access now.")
+        if pol.get('pwMaxDays', 0) and pw_age_days(r) >= pol['pwMaxDays'] and not r['must_change']:
+            conn.execute('UPDATE staff SET must_change=1 WHERE id=?', (r['id'],))
+            seclog(conn, username, 'password_expired', ip, f"older than {pol['pwMaxDays']} days")
+            r = dict(r, must_change=1)
+        new_address = bool(r['last_ip']) and r['last_ip'] != ip
+        if new_address:
+            seclog(conn, username, 'login_new_address', ip, 'previous address ' + str(r['last_ip']))
         conn.execute('UPDATE staff SET failed=0, locked_until=0, prev_login=last_login, prev_ip=last_ip, last_login=?, last_ip=? WHERE id=?', (now_iso(), ip, r['id']))
         conn.execute('DELETE FROM sessions WHERE created<?', (now - 12 * 3600,))
         token = secrets.token_urlsafe(32)
         conn.execute('INSERT INTO sessions(th,staff_id,created,last_seen,ip,ua) VALUES(?,?,?,?,?,?)',
                      (hashlib.sha256(token.encode()).hexdigest(), r['id'], now, now, ip, (h.headers.get('User-Agent') or '')[:200]))
+        cap = pol.get('maxSessions', 0)
+        if cap:
+            old = conn.execute('SELECT th FROM sessions WHERE staff_id=? ORDER BY created DESC', (r['id'],)).fetchall()[cap:]
+            for o in old:
+                conn.execute('DELETE FROM sessions WHERE th=?', (o['th'],))
+            if old:
+                seclog(conn, username, 'older_sessions_closed', ip, f'{len(old)} older device(s) signed out (limit {cap})')
         seclog(conn, username, 'login_ok', ip)
         secure = '; Secure' if (ARGS.secure_cookies or h.headers.get('X-Forwarded-Proto') == 'https') else ''
         cookie = f'sid={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={12 * 3600}{secure}'
-        return {'user': {'username': r['username'], 'name': r['name'], 'role': r['role'], 'must_change': bool(r['must_change']), 'totp_enabled': bool(r['totp_enabled'])}}, {'Set-Cookie': cookie}
+        return {'user': {'username': r['username'], 'name': r['name'], 'role': r['role'], 'must_change': bool(r['must_change']), 'totp_enabled': bool(r['totp_enabled']),
+                         'must_2fa': r['role'] in REQ2FA.get(pol.get('req2fa', ''), set()) and not r['totp_enabled'],
+                         'pw_age_days': pw_age_days(r), 'new_address': new_address, 'prev_login': r['last_login'], 'prev_ip': r['last_ip']}}, {'Set-Cookie': cookie}
     finally:
         conn.close()
 
@@ -1038,7 +1469,7 @@ def api_password(h, q, b):
             seclog(conn, u['username'], 'password_change_failed', h.ip())
             raise ApiError(401, 'The current password is wrong')
         salt, hh = hash_pw(b['new'])
-        conn.execute('UPDATE staff SET salt=?, pw=?, must_change=0 WHERE id=?', (salt, hh, u['id']))
+        conn.execute('UPDATE staff SET salt=?, pw=?, must_change=0, pw_changed=? WHERE id=?', (salt, hh, now_iso(), u['id']))
         conn.execute('DELETE FROM sessions WHERE staff_id=? AND th<>?', (u['id'], u['th']))
         seclog(conn, u['username'], 'password_changed', h.ip(), 'other sessions ended')
     finally:
@@ -1047,7 +1478,7 @@ def api_password(h, q, b):
 
 
 def api_state_get(h, q, b):
-    h.session()
+    user = h.session()
     conn = db()
     try:
         data, vers = {}, {}
@@ -1055,9 +1486,10 @@ def api_state_get(h, q, b):
             data[c], vers[c] = kvload(conn, c)
     finally:
         conn.close()
-    if q.get('since') is not None and str(sum(vers.values())) == q.get('since'):
+    out, v = view_for(user['role'], data, vers)
+    if q.get('since') is not None and str(sum(v.values())) == q.get('since'):
         return {'changed': False}
-    return {'versions': vers, 'data': data}
+    return {'versions': v, 'data': out}
 
 
 def api_state_post(h, q, b):
@@ -1065,6 +1497,9 @@ def api_state_post(h, q, b):
     if user['must_change']:
         raise ApiError(403, 'Please change your password first')
     b = b or {}
+    cs = b.get('changes')
+    if isinstance(cs, dict) and isinstance(cs.get('settings'), dict) and cs['settings'].get('req2fa') and not user['totp_enabled']:
+        raise ApiError(400, 'Turn on your own two-step login first (My account), then require it for others.')
     base, changes = b.get('base') or {}, b.get('changes')
     if not isinstance(changes, dict) or not changes or not isinstance(base, dict):
         bad('Nothing to save', 400)
@@ -1090,7 +1525,8 @@ def api_state_post(h, q, b):
             raise
         finally:
             conn.close()
-    return {'ok': True, 'versions': vers, 'data': clean}
+    out, v = view_for(user['role'], clean, vers)
+    return {'ok': True, 'versions': v, 'data': out}
 
 
 def api_staff_list(h, q, b):
@@ -1098,7 +1534,8 @@ def api_staff_list(h, q, b):
     need_role(u, 'Owner')
     conn = db()
     try:
-        rows = conn.execute('SELECT id,username,name,role,active,must_change,totp_enabled,last_login,last_ip,locked_until,created FROM staff ORDER BY id').fetchall()
+        rows = conn.execute('SELECT id,username,name,role,active,must_change,totp_enabled,last_login,last_ip,locked_until,created,pw_changed,'
+                            '(SELECT COUNT(*) FROM sessions WHERE sessions.staff_id=staff.id) AS sessions FROM staff ORDER BY id').fetchall()
     finally:
         conn.close()
     now = time.time()
@@ -1106,6 +1543,7 @@ def api_staff_list(h, q, b):
     for r in rows:
         d = dict(r)
         d['locked'] = d.pop('locked_until') > now
+        d['pw_age_days'] = pw_age_days(d)
         out.append(d)
     return {'staff': out}
 
@@ -1234,7 +1672,7 @@ def api_account(h, q, b):
         sess = [{'id': x['th'][:12], 'created': x['created'], 'last_seen': x['last_seen'], 'ip': x['ip'], 'ua': x['ua'], 'current': x['th'] == u['th']}
                 for x in conn.execute('SELECT * FROM sessions WHERE staff_id=? ORDER BY last_seen DESC', (u['id'],))]
         recent = [dict(e) for e in conn.execute('SELECT at,event,ip,detail FROM security_log WHERE user=? ORDER BY id DESC LIMIT 15', (u['username'],))]
-        return {'user': public_user(r), 'sessions': sess, 'recent': recent, 'recovery_left': len(json.loads(r['recovery'] or '[]'))}
+        return {'user': public_user(r), 'pw_age_days': pw_age_days(r), 'sessions': sess, 'recent': recent, 'recovery_left': len(json.loads(r['recovery'] or '[]'))}
     finally:
         conn.close()
 
@@ -1367,21 +1805,112 @@ def cli_admin(args):
     conn.close()
 
 
+def cli_list_staff():
+    """Print every staff account (no secrets): useful when someone is locked out or to review who can sign in."""
+    if not os.path.exists(DB_PATH):
+        sys.exit(f'No database found at {DB_PATH}')
+    conn = db()
+    migrate(conn)
+    rows = conn.execute('SELECT * FROM staff ORDER BY id').fetchall()
+    print(f"{'username':<16}{'role':<19}{'active':<8}{'2-step':<8}{'locked':<8}{'pw age':<8}last sign-in")
+    now = time.time()
+    for r in rows:
+        print(f"{r['username']:<16}{r['role']:<19}{'yes' if r['active'] else 'no':<8}{'yes' if r['totp_enabled'] else 'no':<8}{'yes' if r['locked_until'] > now else 'no':<8}{str(pw_age_days(r)) + 'd':<8}{r['last_login'] or 'never'}")
+    conn.close()
+
+
+def make_backup(kind):
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    name = f"{kind}-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.db"
+    path = os.path.join(BACKUP_DIR, name)
+    src = db()
+    dst = sqlite3.connect(path)
+    try:
+        src.backup(dst)
+        check = dst.execute('PRAGMA integrity_check').fetchone()[0]
+    finally:
+        dst.close()
+        src.close()
+    if check != 'ok':
+        os.remove(path)
+        raise RuntimeError('Backup failed the integrity check: ' + str(check))
+    os.chmod(path, 0o600)
+    keep = {'auto': 14, 'manual': 30}[kind]
+    files = sorted(f for f in os.listdir(BACKUP_DIR) if f.startswith(kind + '-') and f.endswith('.db'))
+    for f in files[:-keep]:
+        os.remove(os.path.join(BACKUP_DIR, f))
+    LOG.info('Backup created: %s', name)
+    return name
+
+
+def list_backups():
+    out = []
+    if os.path.isdir(BACKUP_DIR):
+        for f in sorted(os.listdir(BACKUP_DIR), reverse=True):
+            if re.fullmatch(r'(auto|manual)-\d{8}-\d{6}\.db', f):
+                st = os.stat(os.path.join(BACKUP_DIR, f))
+                out.append({'name': f, 'size': st.st_size, 'at': datetime.fromtimestamp(st.st_mtime, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'kind': f.split('-')[0]})
+    return out
+
+
+def backup_loop():
+    time.sleep(3)
+    while True:
+        try:
+            recent = [b for b in list_backups() if b['kind'] == 'auto']
+            if not recent or time.time() - os.stat(os.path.join(BACKUP_DIR, recent[0]['name'])).st_mtime > 23 * 3600:
+                make_backup('auto')
+            purge_prescriptions()
+        except Exception:
+            LOG.exception('Automatic backup failed')
+        time.sleep(3600)
+
+
+def api_backups(h, q, b):
+    u = h.session()
+    need_role(u, 'Owner')
+    return {'backups': list_backups()}
+
+
+def api_backup_run(h, q, b):
+    u = h.session()
+    need_role(u, 'Owner')
+    name = make_backup('manual')
+    conn = db()
+    try:
+        seclog(conn, u['username'], 'backup_created', h.ip(), name)
+    finally:
+        conn.close()
+    return {'ok': True, 'name': name}
+
+
+def api_health(h, q, b):
+    conn = db()
+    try:
+        ok = conn.execute('SELECT 1').fetchone()[0] == 1
+    finally:
+        conn.close()
+    last = next((x['at'] for x in list_backups()), None)
+    return {'ok': ok, 'last_backup': last, 'version': VERSION}
+
+
 ROUTES = {
     ('GET', '/api/ping'): api_ping, ('GET', '/api/me'): api_me, ('GET', '/api/catalog'): api_catalog,
     ('POST', '/api/coupon'): api_coupon, ('POST', '/api/orders'): api_order_create,
     ('POST', '/api/orders/lookup'): api_order_lookup, ('POST', '/api/orders/lookup-many'): api_order_lookup_many,
     ('POST', '/api/orders/cancel'): api_order_cancel, ('POST', '/api/orders/return'): api_order_return,
+    ('GET', '/api/setup'): api_setup_status, ('POST', '/api/setup'): api_setup,
     ('POST', '/api/contact'): api_contact, ('POST', '/api/login'): api_login, ('POST', '/api/logout'): api_logout,
     ('POST', '/api/password'): api_password, ('GET', '/api/state'): api_state_get, ('POST', '/api/state'): api_state_post,
     ('GET', '/api/account'): api_account, ('POST', '/api/account/2fa/start'): api_2fa_start, ('POST', '/api/account/2fa/enable'): api_2fa_enable,
     ('POST', '/api/account/2fa/disable'): api_2fa_disable, ('POST', '/api/account/sessions/revoke'): api_sessions_revoke, ('GET', '/api/security-log'): api_security_log,
+    ('GET', '/api/privacy/export'): api_privacy_export, ('POST', '/api/privacy/erase'): api_privacy_erase, ('POST', '/api/waitlist'): api_waitlist, ('GET', '/api/backups'): api_backups, ('POST', '/api/backups/run'): api_backup_run, ('GET', '/api/health'): api_health,
     ('GET', '/api/staff'): api_staff_list, ('POST', '/api/staff'): api_staff_create, ('POST', '/api/restore'): api_restore,
 }
 
 
 def main():
-    global ARGS, DB_PATH, RATE_SCALE
+    global ARGS, DB_PATH, RATE_SCALE, BACKUP_DIR, RX_DIR
     ap = argparse.ArgumentParser(description='Shagar Medical Store server')
     ap.add_argument('--host', default=os.environ.get('SHAGAR_HOST', '127.0.0.1'))
     ap.add_argument('--port', type=int, default=int(os.environ.get('SHAGAR_PORT', '8000')))
@@ -1393,20 +1922,51 @@ def main():
     ap.add_argument('--reset-password', metavar='USER', help='set a new temporary password for a staff account, then exit')
     ap.add_argument('--disable-2fa', metavar='USER', help='turn two-step login off for a staff account (lost phone), then exit')
     ap.add_argument('--unlock', metavar='USER', help='unlock a locked staff account, then exit')
+    ap.add_argument('--random-owner-password', action='store_true', help='first run without the browser setup page: create the Owner with a random password shown once in this window')
+    ap.add_argument('--list-staff', action='store_true', help='list staff accounts (no passwords), then exit')
     ap.add_argument('--rate-scale', type=float, default=1.0, help=argparse.SUPPRESS)
+    ap.add_argument('--purge-prescriptions', action='store_true', help='delete prescription images past the retention period, then exit')
+    ap.add_argument('--rx-days', type=int, default=None, help=argparse.SUPPRESS)
+    ap.add_argument('--version', action='version', version='Shagar Medical Store server ' + VERSION)
+    ap.add_argument('--no-auto-backup', action='store_true', help='turn off the daily automatic database backup')
     ap.add_argument('--verbose', action='store_true')
     ARGS = ap.parse_args()
     DB_PATH = os.path.join(ARGS.data, 'shop.db')
     RATE_SCALE = ARGS.rate_scale
+    BACKUP_DIR = os.path.join(ARGS.data, 'backups')
+    RX_DIR = os.path.join(ARGS.data, 'prescriptions')
+    os.makedirs(RX_DIR, mode=0o700, exist_ok=True)
+    os.makedirs(ARGS.data, exist_ok=True)
+    fh = logging.handlers.RotatingFileHandler(os.path.join(ARGS.data, 'server.log'), maxBytes=1_000_000, backupCount=5, encoding='utf-8')
+    fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+    LOG.addHandler(fh)
+    LOG.setLevel(logging.INFO)
+    if ARGS.purge_prescriptions:
+        init_db(not ARGS.no_demo, ARGS.owner_password)
+        print(f'{purge_prescriptions(ARGS.rx_days)} prescription image(s) deleted.')
+        return
+    if ARGS.list_staff:
+        cli_list_staff()
+        return
     if ARGS.reset_password or ARGS.disable_2fa or ARGS.unlock:
         cli_admin(ARGS)
         return
     if ARGS.owner_password:
         check_new_password(ARGS.owner_password, 'owner')
+    global RANDOM_OWNER
+    RANDOM_OWNER = ARGS.random_owner_password
     pw = init_db(not ARGS.no_demo, ARGS.owner_password)
+    if needs_setup():
+        SETUP['code'] = secrets.token_urlsafe(6)
+    if not ARGS.no_auto_backup:
+        threading.Thread(target=backup_loop, daemon=True).start()
     srv = http.server.ThreadingHTTPServer((ARGS.host, ARGS.port), H)
+    LOG.info('Server started on %s:%s', ARGS.host, ARGS.port)
     srv.daemon_threads = True
-    print(f'Shagar Medical Store server: http://{ARGS.host}:{ARGS.port}/   (database: {DB_PATH})')
+    print(f'Shagar Medical Store server {VERSION}: http://{ARGS.host}:{ARGS.port}/   (database: {DB_PATH})')
+    if SETUP['code']:
+        print('FIRST RUN: open http://' + (ARGS.host if ARGS.host not in ('0.0.0.0', '') else 'localhost') + ':' + str(ARGS.port) + '/admin/login.html to create the Owner account.')
+        print('Setup code (type it on that page; it works once and is not stored): ' + SETUP['code'])
     if pw:
         print('First run: staff login  username: owner   password: ' + pw)
         if ARGS.owner_password is None:

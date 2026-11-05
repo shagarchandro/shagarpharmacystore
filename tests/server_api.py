@@ -86,7 +86,7 @@ sale = {'id': 'S-1', 'no': 'INV-POS-1', 'at': 'x', 'items': [{'pid': bt[0]['pid'
 sales = copy.deepcopy(D['sales']) + [sale]
 ok(call('POST', '/api/state', {'base': {'sales': V['sales'], 'batches': V['batches'], 'log': V['log']}, 'changes': {'sales': sales, 'batches': bt, 'log': lg}}, cookie=cc)[0] == 422, 'POS sale with a wrong price is rejected')
 p = next(x for x in D['products'] if x['id'] == bt[0]['pid']); import math
-eff = int(p['price'] * (100 - (p.get('disc') or 0)) / 100 + 0.5); sale['items'][0].update(price=eff, cost=p['cost'], name=p['name']); sale['total'] = eff
+eff = int(p['price'] * (100 - (p.get('disc') or 0)) / 100 + 0.5); sale['items'][0].update(price=eff, name=p['name']); sale['items'][0].pop('cost', None); sale['total'] = eff
 s, j, _ = call('POST', '/api/state', {'base': {'sales': V['sales'], 'batches': V['batches'], 'log': V['log']}, 'changes': {'sales': sales, 'batches': bt, 'log': lg}}, cookie=cc); ok(s == 200 and j['data']['sales'][-1]['by'] == 'Cashier', f'valid POS sale is accepted and stamped by the server {s} {j.get("error","")}')
 ok(call('POST', '/api/state', {'base': {'sales': V['sales']}, 'changes': {'sales': sales}}, cookie=cc)[0] == 409, 'stale data from another device is refused (409)')
 st = state(cc); V = st['versions']; sl = copy.deepcopy(st['data']['sales']); sl.pop()
@@ -155,6 +155,54 @@ out = subprocess.run([sys.executable, here, '--data', '/tmp/shagar_t', '--reset-
 newpw = out.split(': ', 1)[1].split('\n')[0].strip() if 'temporary password' in out else ''
 s8, j8, _ = call('POST', '/api/login', {'username': 'cash1', 'password': newpw}); ok(s8 == 200 and j8['user']['must_change'] is True, 'server-console password reset works and forces a new password')
 ok(call('GET', '/api/state', cookie=cc)[0] == 401, 'a console reset ends the old sessions')
+
+
+# ---- role-based data visibility, hidden costs, backups, health, static hardening
+import gzip, sqlite3, tempfile
+def mkstaff(u, role):
+    call('POST', '/api/staff', {'username': u, 'name': u, 'role': role, 'password': 'Temp-Password-1'}, cookie=ck)
+    _, _, k0 = login(u, 'Temp-Password-1'); call('POST', '/api/password', {'old': 'Temp-Password-1', 'new': 'Fresh-Pass-7788'}, cookie=k0); return login(u, 'Fresh-Pass-7788')[2]
+kc, kd, kp, ki = mkstaff('cash3', 'Cashier'), mkstaff('deliv2', 'Delivery Staff'), mkstaff('pharma2', 'Pharmacist'), mkstaff('inv2', 'Inventory Manager')
+sc, sd, sp, si, so = state(kc), state(kd), state(kp), state(ki), state(ck)
+ok(set(sd['data']) == {'orders', 'settings'} and set(sd['versions']) == {'orders', 'settings'}, 'delivery staff receive only orders and settings')
+ok(not ({'purchases', 'suppliers', 'cust', 'messages', 'notes', 'coupons', 'audit'} & set(sc['data'])), 'a cashier is not sent supplier, purchase, customer-note or audit data')
+ok(all('cost' not in x for x in sc['data']['products']) and all('cost' not in x for x in sc['data']['batches']) and all('cost' not in it for s in sc['data']['sales'] for it in s['items']), 'purchase costs are hidden from the cashier')
+ok(all('cost' not in x for x in sp['data']['products']) and 'messages' not in sp['data'] and 'cust' not in sp['data'], 'a pharmacist does not see costs, messages or customer notes')
+ok(all('cost' in x for x in si['data']['products']) and all('cost' in x for x in so['data']['products']) and {'cust', 'messages', 'purchases'} <= set(so['data']), 'the owner (and inventory manager for costs) see everything they need')
+tot = sum(sd['versions'].values()); ok(call('GET', '/api/state?since=%d' % tot, cookie=kd)[1].get('changed') is False, 'polling works with a role-limited view')
+ok(call('GET', '/api/staff', cookie=kd)[0] == 403 and call('GET', '/api/security-log', cookie=kc)[0] == 403, 'limited roles cannot read staff or the security log')
+D = sc['data']; b0 = next(b for b in D['batches'] if b['pid'] == 'P2' and b['qty'] > 0 and b['exp'] > '2000'); bt = copy.deepcopy(D['batches']); [x for x in bt if x['id'] == b0['id']][0]['qty'] -= 1
+lg = copy.deepcopy(D['log']) + [{'at': 'x', 'pid': 'P2', 'batch': b0['id'], 'delta': -1, 'ref': 'INV-POS-77', 'why': 'sale'}]
+prod = next(x for x in D['products'] if x['id'] == 'P2'); e2 = int(prod['price'] * (100 - (prod.get('disc') or 0)) / 100 + 0.5)
+sl = copy.deepcopy(D['sales']) + [{'id': 'S-77', 'no': 'INV-POS-77', 'at': 'x', 'items': [{'pid': 'P2', 'name': 'Seclo', 'qty': 1, 'price': e2}], 'total': e2, 'disc': 0, 'pay': 'Cash', 'change': 0}]
+V = sc['versions']; s9, j9, _ = call('POST', '/api/state', {'base': {'sales': V['sales'], 'batches': V['batches'], 'log': V['log']}, 'changes': {'sales': sl, 'batches': bt, 'log': lg}}, cookie=kc)
+ok(s9 == 200 and 'cost' not in j9['data']['sales'][-1]['items'][0], f'a cashier sale is accepted without any cost data {s9} {j9.get("error","")}')
+so2 = state(ck)['data']; ok(next(s for s in so2['sales'] if s['no'] == 'INV-POS-77')['items'][0]['cost'] == next(x for x in so2['products'] if x['id'] == 'P2')['cost'], 'the server fills in the cost from the product')
+ok(all('cost' in x for x in so2['batches']), 'batch costs survive a cashier changing stock')
+spx = state(kp); sl2 = copy.deepcopy(spx['data']['sales']); sl2[-1]['refunded'] = True
+ok(call('POST', '/api/state', {'base': {'sales': spx['versions']['sales']}, 'changes': {'sales': sl2}}, cookie=kp)[0] == 200 and all('cost' in it for it in state(ck)['data']['sales'][-1]['items']), 'a pharmacist can refund a sale without ever seeing its costs (and they are not lost)')
+ok(call('POST', '/api/state', {'base': {'audit': so['versions']['audit']}, 'changes': {'audit': [{'at': 'x', 'by': 'Cashier', 'msg': 'x'}]}}, cookie=kc)[0] == 403, 'a cashier cannot write the audit trail')
+s, j, _ = call('POST', '/api/backups/run', {}, cookie=ck); name = j.get('name', ''); ok(s == 200 and name.startswith('manual-'), 'owner can make a backup now')
+ok(any(b['name'] == name for b in call('GET', '/api/backups', cookie=ck)[1]['backups']), 'the backup is listed')
+s, body, _ = call('GET', '/api/backups/download?name=' + name, cookie=ck); ok(s == 200 and body[:15] == b'SQLite format 3', 'a backup downloads as a SQLite file')
+tmp = tempfile.mktemp(suffix='.db'); open(tmp, 'wb').write(body); cn = sqlite3.connect(tmp); ok(cn.execute('select count(*) from kv').fetchone()[0] == 18 and cn.execute('select count(*) from staff').fetchone()[0] >= 5, 'the downloaded backup is a complete, readable database'); cn.close(); os.remove(tmp)
+ok(call('GET', '/api/backups', cookie=kc)[0] == 403 and call('GET', '/api/backups/download?name=' + name, cookie=kc)[0] == 403, 'only the owner can list or download backups')
+ok(call('GET', '/api/backups/download?name=../shop.db', cookie=ck)[0] == 404 and call('GET', '/api/backups/download?name=manual-1.db', cookie=ck)[0] == 404, 'backup downloads cannot be used to read other files')
+import time as _t
+for _ in range(10):
+    if any(b['kind'] == 'auto' for b in call('GET', '/api/backups', cookie=ck)[1]['backups']): break
+    _t.sleep(1)
+ok(any(b['kind'] == 'auto' for b in call('GET', '/api/backups', cookie=ck)[1]['backups']), 'the server makes an automatic backup by itself')
+ok(call('GET', '/api/health')[1].get('ok') is True, 'health check endpoint answers')
+def raw(path, headers=None):
+    r = urllib.request.Request(B + path, headers=headers or {})
+    try: x = urllib.request.urlopen(r); return x.status, x.read(), x.headers
+    except urllib.error.HTTPError as e: return e.code, e.read(), e.headers
+s, body, h = raw('/assets/js/admin.js', {'Accept-Encoding': 'gzip'}); ok(s == 200 and h.get('Content-Encoding') == 'gzip' and gzip.decompress(body)[:12] == b"'use strict'", 'scripts are compressed (gzip)')
+et = h.get('ETag'); ok(bool(et) and raw('/assets/js/admin.js', {'If-None-Match': et})[0] == 304, 'unchanged files answer 304 (cheap revalidation)')
+s, body, h = raw('/no-such-page.html'); ok(s == 404 and b'Page not found' in body, 'unknown pages show a friendly 404 page')
+s, body, h = raw('/robots.txt'); ok(s == 200 and b'Disallow: /admin/' in body, 'robots.txt keeps search engines out of the admin and API')
+ok(raw('/deploy/Caddyfile')[0] == 404 and raw('/deploy/README.txt')[0] == 404, 'deployment notes are not served to visitors')
 
 # static files
 for path in ('/server/server.py', '/server/data/shop.db', '/server/seed.json', '/tests/server_api.py', '/README.md', '/%2e%2e/etc/passwd', '/.git/config'):

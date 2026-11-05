@@ -54,7 +54,7 @@ with sync_playwright() as p:
     ca = new_ctx(b, poll=True); c = ca.new_page(); c.on('dialog', lambda d: d.accept('x')); c.on('pageerror', lambda e: errs.append((str(e)+' @'+str(getattr(e,'stack',''))[:260]))); staff_login(c, 'cash2', 'Temp-Password-9'); c.wait_for_selector('dialog[open] input[name=nw]')
     ok('Choose a new password' in c.inner_text('dialog[open]'), 'a new account is forced to choose its own password')
     c.fill('dialog input[name=old]', 'Temp-Password-9'); c.fill('dialog input[name=nw]', 'Cash-Two-New-Pass'); c.fill('dialog input[name=nw2]', 'Cash-Two-New-Pass'); c.click('dialog button.btn'); c.wait_for_timeout(500)
-    ok(c.locator('#side nav button').count() == 4 and c.locator('#side nav button[data-t=reports]').count() == 0, 'cashier sees only the cashier screens plus My account')
+    ok(c.locator('#side nav button').count() == 6 and c.locator('#side nav button[data-t=reports]').count() == 0, 'cashier sees only the cashier screens plus My account')
     c.click('#side nav button[data-t=pos]'); c.wait_for_selector('#pq'); c.fill('#pq', '890001000'); c.press('#pq', 'Enter'); c.wait_for_timeout(200); c.fill('[aria-label="Cash received"]', '100'); c.click('button:text-is("Complete sale")'); c.wait_for_selector('dialog[open]')
     ok('INV-POS-1' in c.inner_text('dialog[open]'), 'cashier completes a POS sale that the server accepts')
     a.click('#side nav button[data-t=dash]'); a.wait_for_timeout(4500); a.click('#side nav button[data-t=dash]'); ok('INV-POS-1' not in a.inner_text('body') and a.evaluate("db().sales.length")==1, "the owner's panel receives the cashier's sale")
