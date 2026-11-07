@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.2.0 (quality pass: accessibility, phones, real-server checks)
+- Accessibility audit with axe-core (light and dark, storefront and admin, WCAG 2.1 A/AA plus best practice): fixed the low-contrast "Admin" link in the header, three buttons whose accessible name did not contain their visible text (language toggle, Admin link, "+ 1 cup"). The audit now reports 0 problems.
+- Phones (390 px): checked 11 storefront pages and 17 admin screens. Found and fixed one sideways-scroll problem that was already in the original project (the admin Products table); admin tables on phones now scroll inside themselves.
+- Orders: the "Need help with this order?" button now also appears on an order found with "Track an order" (the normal case for customers without a saved name), not only on the saved-orders list.
+- New tests: `tests/a11y_audit.py` (needs `npm i axe-core` in /tmp/axe), `tests/mobile_audit.py`, `tests/server_storefront.py` (the updated storefront sections against the real server: order, tracking, contact message, help, health, wishlist).
+- Version 2.2.0, service worker mc-v12.
+
+## 2.1.0 (storefront sections, second round)
+- **Shop:** price per unit on cards (for example ৳2.50 / tab), recent-search chips, barcode scan (📷, only in browsers that support camera barcode reading; matches products that have a barcode or SKU saved), and "Same ingredient, other brands" on the product page with price per unit and the saving.
+- **Wishlist:** sort (saved order, name, price, discount, in stock first), a private note per item, copy the list as text, and send it to the pharmacy on WhatsApp.
+- **Orders:** "Time to reorder?" suggestions for items bought 25+ days ago and a six-month spending chart, both built from the customer's own orders.
+- **Help:** new "Know your medicine" group (Rx, generic vs brand, reading a pack, forms, storage, leftovers, antibiotics); the FAQ search covers it.
+- **Contact:** call-back time buttons and a picker for recent orders.
+- **Health:** dose times planner (turns "every 8 hours" into reminders) and supply calculator (how long a supply lasts, with a calendar file to remind you to reorder).
+- Fix: on a direct visit to Help or FAQ (`#/info`, `faq.html`) the 2.0.0 additions were not drawn because the page was not redrawn after the add-ons loaded; it is now redrawn and keeps the highlighted section.
+- Global `[hidden]` rule so buttons hidden by the code are really hidden. Version 2.1.0, service worker mc-v11, new test `tests/sections2.py`.
+
 ## 2.0.0 (storefront sections)
 - **Shop:** Grid / List view (remembered), Quick view (👁 on every card: details, quantity, add to cart), "Did you mean" suggestions and a WhatsApp question when a search finds nothing, back-to-top button.
 - **Wishlist:** total for what is in stock, Share wishlist link (`#/sharewish/...`, opened by anyone and saved to their own list), price-drop / price-change notes since the item was saved, popular picks when the list is empty.

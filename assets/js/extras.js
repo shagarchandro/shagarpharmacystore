@@ -136,7 +136,7 @@ const fsSet=v=>{document.documentElement.style.fontSize=v+'%';try{localStorage.s
  nv.addEventListener('click',e=>{if(e.target.closest('a'))setNav(false)});
  addEventListener('keydown',e=>{if(e.key==='Escape'&&hd.classList.contains('navopen')){setNav(false);btn.focus()}});
  addEventListener('hashchange',()=>setNav(false));
- const st=hd.querySelector('a[href="admin/login.html"]');if(st){st.classList.add('staff');st.setAttribute('aria-label',tr('Staff login'));st.title=tr('Staff login')}
+ const st=hd.querySelector('a[href="admin/login.html"]');if(st){st.classList.add('staff');st.setAttribute('aria-label',st.textContent.trim()+' – '+tr('Staff login'));st.title=tr('Staff login')}
  const mark=()=>{const r=(location.hash?location.hash.slice(2).split('/')[0]:window.ROUTE)||'catalog',alias={product:'catalog',compare:'catalog',sharecart:'catalog',success:'orders'},cur=alias[r]||r;
   nv.querySelectorAll('a').forEach(a=>{const k=(a.getAttribute('href')||'').slice(2).split('/')[0]||'catalog';if(k===cur)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});};
  const r1=render;render=function(){const x=r1.apply(this,arguments);mark();return x};mark();

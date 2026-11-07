@@ -89,6 +89,9 @@ Real accounts, passwords, lockout, two-step login and sessions only exist when t
 ## New in 2.0.0: Shop, Wishlist, Orders, Help, Contact, Health
 See CHANGELOG. Health notes (blood pressure, sugar, water) are general information for adults and are not medical advice or a diagnosis; readings are stored only in the visitor's browser (`mc_hlog`, `mc_water`, `mc_rem`). The wishlist price-change note compares with the price seen when the item first appeared in the saved list on this device.
 
+## New in 2.1.0
+Per-unit prices are worked out from the pack text (for example "10 tabs"), so products whose pack text has no leading number show none. "Same ingredient, other brands" matches on the generic name only; strength and pack can differ, which the page says. Barcode scan needs the browser's BarcodeDetector (Chrome on Android and some desktops) and camera permission. The dose planner and supply calculator are arithmetic helpers, not medical advice.
+
 ## Real server mode (works like a real site)
 
 The project runs in **two modes** with the same pages:

@@ -18,3 +18,4 @@ th.sortable{cursor:pointer;user-select:none}th.sortable:hover{background:color-m
 .top .crumb{color:var(--mut);font-weight:500;max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .top .clock,.top .conn,.top .chip{font-size:.85rem;color:var(--mut);white-space:nowrap}.top .conn.off{color:#b42318;font-weight:700}
 @media (max-width:700px){.top .clock,.top .chip,.top .crumb{display:none}}
+@media (max-width:700px){body.adm #app table{display:block;position:relative;overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}}

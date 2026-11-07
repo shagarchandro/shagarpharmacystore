@@ -15,7 +15,7 @@ import gzip, logging, logging.handlers, sys, threading, time, traceback, urllib.
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 
-VERSION = '2.0.0'
+VERSION = '2.2.0'
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SEED = os.path.join(HERE, 'seed.json')

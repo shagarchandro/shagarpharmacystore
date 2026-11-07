@@ -128,3 +128,16 @@ Legend: **[auto]** passed in automated Chromium (Playwright) or jsdom runs durin
 - [ ] Contact: the form remembers a half-written message after a reload and clears it after sending.
 - [ ] Health: log a blood pressure of 150/95 (flagged), a normal one, see the chart; export the CSV; try the water tracker and the printed schedule.
 - [ ] Have a pharmacist or doctor read the wording of the health ranges before showing them to real customers.
+
+## v2.1.0 (manual check)
+- [ ] Shop: search "napa", reload, tap the recent-search chip; on a phone with Chrome tap 📷 and scan a pack whose barcode is saved.
+- [ ] Product page of a medicine that has another brand: the "Same ingredient, other brands" box shows the cheaper pack per unit.
+- [ ] Wishlist: sort, add a note, reload; Copy list as text pastes a clean list.
+- [ ] Orders (with an old delivered order): "Time to reorder?" and the spending bars appear.
+- [ ] Open help.html or faq.html directly: the "Using this website" and "Know your medicine" groups are there and the section is highlighted.
+- [ ] Health: dose planner (every 8 hours from 06:00) creates 06:00, 14:00 and 22:00 reminders; the calendar file opens in your calendar app.
+
+## v2.2.0 (manual check)
+- [ ] Real phone: open Shop, Wishlist, Orders, Help, Contact, Health and the admin Products screen; nothing is cut off and tables scroll sideways inside their box.
+- [ ] Turn on a screen reader or keyboard-only use on the login page and the storefront header: every button has a clear name.
+- [ ] Track an order by number and mobile: "Need help with this order?" appears and opens Contact with the number filled in.

@@ -1,9 +1,9 @@
-# v1.3 add-ons in REAL server mode: new screens render for the Owner, new pages are served, version is 2.0.0
+# v1.3 add-ons in REAL server mode: new screens render for the Owner, new pages are served, version is 2.2.0
 import json, urllib.request
 from playwright.sync_api import sync_playwright
 B='http://127.0.0.1:8800/';OWNER='Sunrise-Tea-4471';res=[]
 def ok(c,m): res.append(('PASS ' if c else 'FAIL ')+m)
-h=json.load(urllib.request.urlopen(B+'api/health'));ok(h.get('version')=='2.0.0','health reports version 2.0.0: '+str(h.get('version')))
+h=json.load(urllib.request.urlopen(B+'api/health'));ok(h.get('version')=='2.2.0','health reports version 2.2.0: '+str(h.get('version')))
 for u in ('assets/js/extras.js','assets/js/admin-extras.js','health.html','compare.html','admin/insights.html','admin/refill.html','admin/labels.html','admin/pricelist.html','admin/customer360.html','admin/expiry.html','admin/margins.html','admin/reorder.html'):
     r=urllib.request.urlopen(B+u);ok(r.status==200,'served: '+u)
 with sync_playwright() as p:

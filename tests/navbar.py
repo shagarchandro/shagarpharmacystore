@@ -14,7 +14,7 @@ with sync_playwright() as p:
     ok(not pg.is_visible('.navtoggle'),'no hamburger on a wide screen')
     pg.keyboard.press('/');ok(pg.evaluate("document.activeElement.closest('.hsearch')!==null"),'"/" focuses the search box')
     pg.mouse.wheel(0,600);pg.wait_for_timeout(300);ok(pg.evaluate("document.querySelector('header.bar').classList.contains('scrolled')"),'header gets a shadow after scrolling')
-    ok(pg.get_attribute('a.staff','aria-label')=='Staff login','staff link is labelled')
+    ok(pg.get_attribute('a.staff','aria-label').endswith('Staff login'),'staff link is labelled')
     m=br.new_context(viewport={'width':390,'height':800}).new_page();m.on('pageerror',lambda e:errs.append(str(e)))
     m.goto(B+'index.html');m.wait_for_selector('article.card')
     ok(m.is_visible('.navtoggle') and not m.is_visible('header.bar nav'),'phone: menu button shown, links hidden')
