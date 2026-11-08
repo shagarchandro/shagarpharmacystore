@@ -1,6 +1,6 @@
 // sw.js: network-first service worker. Online you always get the latest files; offline you get the last copy you visited.
-const C='mc-v12';
-const CORE=['index.html','admin/index.html','admin/login.html','assets/css/styles.css','assets/css/admin.css','assets/css/responsive.css','assets/js/utils.js','assets/js/i18n.js','assets/js/storage.js','assets/js/store.js','assets/js/extras.js','assets/js/extras2.js','assets/js/admin-extras.js','assets/js/admin.js','assets/js/admin-loader.js','assets/js/login.js','assets/icons/favicon.svg','assets/images/logo.svg','manifest.webmanifest'];
+const C='mc-v15';
+const CORE=['index.html','admin/index.html','admin/login.html','assets/css/styles.css','assets/css/design.css','assets/fonts/hind-siliguri-latin-400-normal.woff2','assets/fonts/hind-siliguri-latin-700-normal.woff2','assets/fonts/hind-siliguri-bengali-400-normal.woff2','assets/fonts/bricolage-grotesque-latin-wght-normal.woff2','assets/css/admin.css','assets/css/responsive.css','assets/js/utils.js','assets/js/i18n.js','assets/js/storage.js','assets/js/store.js','assets/js/extras.js','assets/js/extras2.js','assets/js/admin-extras.js','assets/js/admin.js','assets/js/admin-loader.js','assets/js/login.js','assets/icons/favicon.svg','assets/images/logo.svg','manifest.webmanifest'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET'||new URL(r.url).origin!==location.origin||new URL(r.url).pathname.startsWith('/api/'))return;

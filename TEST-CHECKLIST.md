@@ -141,3 +141,20 @@ Legend: **[auto]** passed in automated Chromium (Playwright) or jsdom runs durin
 - [ ] Real phone: open Shop, Wishlist, Orders, Help, Contact, Health and the admin Products screen; nothing is cut off and tables scroll sideways inside their box.
 - [ ] Turn on a screen reader or keyboard-only use on the login page and the storefront header: every button has a clear name.
 - [ ] Track an order by number and mobile: "Need help with this order?" appears and opens Contact with the number filled in.
+
+## v3.0.0 design (manual check)
+- [ ] Look at Shop, a product page, Cart, Checkout, Orders, Help, Contact, Health and the admin panel in light and dark mode, in English and Bangla, on a real phone and a laptop.
+- [ ] Bangla text uses the same typeface (no fallback boxes) and the taka sign shows correctly.
+- [ ] Switch the colour palette (🎨): every page stays readable in all four.
+- [ ] Print an invoice or a shelf label: the colours do not get in the way.
+- [ ] Offline test: after one visit, turn off the internet and reload the home page; fonts and styles still load.
+
+## v3.0.1 (manual check)
+- [ ] Press the colour button (🎨) four times: the header, buttons and strip change colour each time, in light and dark mode.
+- [ ] Look at the pages in Bangla (the language button): headings and the taka sign use a clean Bengali typeface.
+
+## v3.1.0 admin panel (manual check)
+- [ ] The sidebar groups: collapse two, reload, they stay collapsed; open a screen inside a collapsed group through a shortcut and the group opens.
+- [ ] Turn on 🔔, leave the panel in a background tab, place an order from another device: the tab title count rises (sound and notification if allowed).
+- [ ] Press ? and try "g" then "o".
+- [ ] Look at the Dashboard on a phone: the attention chips wrap and the sidebar opens with the menu button.

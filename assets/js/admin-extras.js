@@ -235,7 +235,50 @@ const policyAdd=r=>{try{if(!(typeof SERVER!=='undefined'&&SERVER)||R!=='Owner')r
  const who=(typeof SERVER!=='undefined'&&SERVER&&typeof ME!=='undefined'&&ME&&ME.name)?h('span',{class:'chip'},'👤 '+ME.name):null;
  if(tl)tl.prepend(...[who,clock,dot].filter(Boolean))},100)}
 
-window.ADMIN_WRAPS=[{id:'dash',fn:dashAdd},{id:'account',fn:accountAdd},{id:'users',fn:usersAdd},{id:'settings',fn:policyAdd}];
+// ---- v3.1 admin upgrades: grouped sidebar, "needs attention" strip, new-order alerts, shortcuts, compact tables ----
+if(typeof I18!=='undefined')Object.assign(I18.bn,{'Overview':'ওভারভিউ','Orders and sales':'অর্ডার ও বিক্রি','Products and stock':'পণ্য ও স্টক','Money and reports':'হিসাব ও রিপোর্ট','People and system':'মানুষ ও সিস্টেম','Needs attention':'যেগুলো দেখা দরকার','All clear':'সব ঠিক আছে','Keyboard shortcuts':'কিবোর্ড শর্টকাট','Compact tables':'ঘন টেবিল','New order alerts':'নতুন অর্ডারের সতর্কতা'});
+const GROUPS=[['Overview',['dash','alerts']],['Orders and sales',['rx','orders','pos','returns','delivery','customer360','refill','customers']],['Products and stock',['products','labels','pricelist','cats','inv','stk','expiry','ledger','purchases','reorder','suppliers']],['Money and reports',['expenses','reports','insights','margins']],['People and system',['notes','users','seclog','account','settings','data']]];
+const groupNav=()=>{const nav=document.querySelector('#side nav');if(!nav||nav.dataset.grouped)return false;const btns=[...nav.querySelectorAll(':scope>button[data-t]')];if(btns.length<6)return false;
+ const by=Object.fromEntries(btns.map(b=>[b.dataset.t,b])),used=new Set(),saved=(()=>{try{return JSON.parse(localStorage.getItem('mc_navc')||'{}')}catch(e){return{}}})();
+ const frag=document.createDocumentFragment();
+ const mk=(title,tabs)=>{const list=tabs.filter(t=>by[t]);if(!list.length)return;list.forEach(t=>used.add(t));
+  const d=h('details',{class:'navgrp'},h('summary',{},T(title)),...list.map(t=>by[t]));d.open=saved[title]!==false;d.addEventListener('toggle',()=>{const m=(()=>{try{return JSON.parse(localStorage.getItem('mc_navc')||'{}')}catch(e){return{}}})();m[title]=d.open;try{localStorage.setItem('mc_navc',JSON.stringify(m))}catch(e){}});frag.append(d)};
+ GROUPS.forEach(([t,l])=>mk(t,l));const rest=btns.filter(b=>!used.has(b.dataset.t));if(rest.length)mk('More',rest.map(b=>b.dataset.t));
+ nav.dataset.grouped='1';nav.append(frag);
+ // keep the group of the current screen open
+ new MutationObserver(()=>{const on=nav.querySelector('button.on');const g=on&&on.closest('details');if(g&&!g.open)g.open=true}).observe(nav,{attributes:true,subtree:true,attributeFilter:['class']});return true};
+{let n=0;const t=setInterval(()=>{if(groupNav()||++n>60)clearInterval(t)},100)}
+
+// compact tables + alerts toggle + shortcuts help in the top bar
+{let n=0;const t=setInterval(()=>{const tl=document.querySelector('.top .tools');if(++n>60)clearInterval(t);if(!tl||tl.querySelector('.dens'))return;clearInterval(t);
+ const pref=k=>localStorage.getItem(k)==='1';document.body.classList.toggle('compact',pref('mc_dense'));
+ const dens=h('button',{type:'button',class:'dens','aria-pressed':String(pref('mc_dense')),title:T('Compact tables'),'aria-label':T('Compact tables'),onclick(){const on=!document.body.classList.contains('compact');document.body.classList.toggle('compact',on);dens.setAttribute('aria-pressed',String(on));try{localStorage.setItem('mc_dense',on?'1':'0')}catch(e){}}},'☷');
+ const al=h('button',{type:'button',class:'alrt','aria-pressed':String(pref('mc_alert')),title:T('New order alerts'),'aria-label':T('New order alerts'),onclick(){const on=!pref('mc_alert');try{localStorage.setItem('mc_alert',on?'1':'0')}catch(e){}al.setAttribute('aria-pressed',String(on));al.textContent=on?'🔔':'🔕';
+  if(on){beep();if('Notification' in window&&Notification.permission==='default')Notification.requestPermission().catch(()=>{});toast('New order alerts are on')}else toast('New order alerts are off')}},pref('mc_alert')?'🔔':'🔕');
+ const kb=h('button',{type:'button',title:T('Keyboard shortcuts'),'aria-label':T('Keyboard shortcuts'),onclick:()=>shortcuts()},'?');
+ tl.prepend(dens,al,kb)},100)}
+let AC=null;const beep=()=>{try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=880;g.gain.value=.08;o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+.18)}catch(e){}};
+const baseTitle=document.title;let last={orders:null,rx:null};
+const alertCheck=()=>{const o=document.getElementById('bdg-orders'),r=document.getElementById('bdg-rx');if(!o&&!r)return;const no=+(o&&o.textContent)||0,nr=+(r&&r.textContent)||0,tot=no+nr;document.title=(tot?'('+tot+') ':'')+baseTitle.replace(/^\(\d+\)\s*/,'');
+ const rxUp=last.rx!==null&&nr>last.rx,grew=(last.orders!==null&&no>last.orders)||rxUp;last={orders:no,rx:nr};
+ if(grew&&localStorage.getItem('mc_alert')==='1'){beep();try{if('Notification' in window&&Notification.permission==='granted')new Notification(rxUp?'New prescription to review':'New order waiting',{body:tot+' waiting'})}catch(e){}}};
+{let n=0;const t=setInterval(()=>{const o=document.getElementById('bdg-orders');if(++n>80)clearInterval(t);if(!o)return;clearInterval(t);const mo=new MutationObserver(alertCheck);['bdg-orders','bdg-rx'].forEach(id=>{const e=document.getElementById(id);if(e)mo.observe(e,{childList:true,characterData:true,subtree:true})});alertCheck()},150)}
+
+// shortcuts: "?" lists them, "g" then a letter jumps to a screen (only screens you may open)
+const KEYS={d:'dash',a:'alerts',r:'rx',o:'orders',p:'pos',i:'inv',s:'products',c:'customers',e:'expenses',t:'reports',u:'users'};
+const shortcuts=()=>{if(document.querySelector('dialog.kbd'))return;const rows=[['Ctrl+K','Search orders, products, customers'],['?','This list'],...Object.entries(KEYS).filter(([k,t])=>document.querySelector('#side nav button[data-t='+t+']')).map(([k,t])=>['g then '+k,'Go to '+(NAMES[t]||t)])];
+ const w=h('dialog',{class:'kbd','aria-label':T('Keyboard shortcuts')},h('h2',{},T('Keyboard shortcuts')),h('dl',{},rows.flatMap(([a,b])=>[h('dt',{},h('kbd',{},a)),h('dd',{},b)])),h('p',{},h('button',{type:'button',onclick(){w.close();w.remove()}},T('Close'))));w.addEventListener('close',()=>w.remove());document.body.append(w);w.showModal()};
+let gWait=0;document.addEventListener('keydown',e=>{const t=e.target,typing=t&&(/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)||t.isContentEditable);if(typing||e.ctrlKey||e.metaKey||e.altKey||!document.querySelector('#side'))return;
+ if(e.key==='?'){e.preventDefault();shortcuts();return}
+ if(gWait&&Date.now()-gWait<1200){gWait=0;const tab=KEYS[e.key.toLowerCase()],b=tab&&document.querySelector('#side nav button[data-t='+tab+']');if(b){e.preventDefault();b.click()}return}
+ if(e.key==='g')gWait=Date.now()});
+
+// dashboard: what needs attention, with links
+const attnAdd=r=>{try{const can=t=>(typeof ACC!=='undefined'&&ACC[R]||[]).includes(t),lim=new Date(Date.now()+(+D.settings.expiryDays||60)*864e5).toISOString().slice(0,10),go2=t=>{const b=document.querySelector('#side nav button[data-t='+t+']');if(b)b.click()};
+ const items=[['rx','Prescriptions to review',(D.orders||[]).filter(o=>o.status==='Prescription Review').length],['orders','Orders waiting',(D.orders||[]).filter(o=>o.status==='Pending').length],['alerts','Low stock',D.products.filter(p=>stock(D,p.id)<p.reorder).length],['alerts','Expiring soon',D.batches.filter(b=>b.qty>0&&b.exp>=today()&&b.exp<=lim).length],['alerts','Expired, to write off',D.batches.filter(b=>b.qty>0&&b.exp<today()).length]].filter(([t,l,n])=>n>0&&can(t));
+ r.prepend(h('section',{class:'attn','aria-label':T('Needs attention')},h('h2',{},T('Needs attention')),items.length?h('div',{class:'row'},items.map(([t,l,n])=>h('button',{type:'button',class:'btn2 attn-chip',onclick:()=>go2(t)},h('b',{},n),' '+l))):h('p',{class:'ok'},'✓ '+T('All clear'))))}catch(e){console.error(e)}return r};
+
+window.ADMIN_WRAPS=[{id:'dash',fn:dashAdd},{id:'dash',fn:attnAdd},{id:'account',fn:accountAdd},{id:'users',fn:usersAdd},{id:'settings',fn:policyAdd}];
 
 window.ADMIN_EXTRAS=[
  {id:'insights',name:'Insights',icon:'🔍',roles:['Owner'],after:'reports',view:insights},

@@ -8,3 +8,4 @@
 @media(max-width:900px){.top{flex-wrap:wrap}.gsearch{order:5;flex-basis:100%;max-width:none}}
 @media print{.cmpbar{display:none!important}.lbl-sheet{gap:.2cm}}
 @media print{.totop,.qvbtn{display:none!important}dialog.rcpt{display:block}}
+@media print{dialog.kbd{display:none!important}}

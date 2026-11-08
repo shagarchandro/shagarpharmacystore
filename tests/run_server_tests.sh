@@ -1,7 +1,7 @@
 #!/bin/sh
 # Runs the real-server tests with a fresh temporary database each time.
 cd "$(dirname "$0")/.." || exit 1
-for t in server_api server_e2e server_admin_flows server_login_ui server_roles_ui server_features server_features_ui csp_sweep server_extras server_login_v14 server_policy server_login_page server_setup server_storefront; do
+for t in server_api server_e2e server_admin_flows server_login_ui server_roles_ui server_features server_features_ui csp_sweep server_extras server_login_v14 server_policy server_login_page server_setup server_storefront server_admin_v31; do
   rm -rf /tmp/shagar_t
   python3 server/server.py --port 8800 --data /tmp/shagar_t --owner-password 'Sunrise-Tea-4471' --rate-scale 50 >/tmp/shagar_server.log 2>&1 &
   PID=$!

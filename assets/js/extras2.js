@@ -183,8 +183,20 @@ views.health=function(){const r=health0.apply(this,arguments);
  return r};
 
 
+// ================================================================ v3.0 design hooks (structure only; the look is in design.css)
+{const b=document.querySelector('header.bar .brand');if(b&&b.textContent.trim().startsWith('✚')&&!b.querySelector('.cross')){const name=b.textContent.trim().slice(1).trim();b.replaceChildren(h('span',{class:'cross','aria-hidden':'true'},'✚'),h('span',{},name))}
+ const cc=document.getElementById('cc'),cl=cc&&cc.closest('a');if(cl)cl.classList.add('cartlink')}
+const PACK=['#00774a','#c77d00','#2d6cdf','#b3261e','#7a3db8','#0a7c86'];
+const packColour=cat=>PACK[[...String(cat||'')].reduce((a,c)=>(a*31+c.charCodeAt(0))>>>0,3)%PACK.length];
+const card3=card;card=function(p){const a=card3.apply(this,arguments);try{a.style.setProperty('--cat',packColour(p.cat))}catch(e){}return a};
+const cat4=views.catalog;views.catalog=function(){const r=cat4.apply(this,arguments);
+ try{const hero=r.querySelector(':scope>.hero'),off=r.querySelector(':scope>.offers');
+  if(hero&&off&&!r.querySelector('.hero-wrap')){const w=h('div',{class:'hero-wrap'});hero.before(w);
+   hero.append(h('div',{class:'row'},h('button',{type:'button',class:'btn',onclick(){const t=document.getElementById('all');if(t)t.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'})}},tr('Browse medicines')),h('a',{class:'btn2',href:'#/contact'},tr('Ask the pharmacist'))));
+   w.append(hero,off)}}catch(e){console.error(e)}return r};
+
 // ================================================================ v2.1 additions
-if(typeof I18!=='undefined')Object.assign(I18.bn,{'Recent searches':'সাম্প্রতিক সার্চ','Scan a barcode':'বারকোড স্ক্যান','Same ingredient, other brands':'একই উপাদান, অন্য ব্র্যান্ড','Sort':'সাজান','Copy list as text':'তালিকা টেক্সট হিসেবে কপি','Time to reorder?':'আবার অর্ডারের সময়?','Spending by month':'মাসভিত্তিক খরচ','Know your medicine':'আপনার ওষুধ জানুন','Call me back':'আমাকে কল করুন','Dose times planner':'ডোজের সময় পরিকল্পনা','Supply calculator':'ওষুধ কতদিন চলবে','Add to calendar':'ক্যালেন্ডারে যোগ করুন','Create reminders':'রিমাইন্ডার তৈরি করুন'});
+if(typeof I18!=='undefined')Object.assign(I18.bn,{'Browse medicines':'ওষুধ দেখুন','Ask the pharmacist':'ফার্মাসিস্টকে জিজ্ঞাসা করুন','Recent searches':'সাম্প্রতিক সার্চ','Scan a barcode':'বারকোড স্ক্যান','Same ingredient, other brands':'একই উপাদান, অন্য ব্র্যান্ড','Sort':'সাজান','Copy list as text':'তালিকা টেক্সট হিসেবে কপি','Time to reorder?':'আবার অর্ডারের সময়?','Spending by month':'মাসভিত্তিক খরচ','Know your medicine':'আপনার ওষুধ জানুন','Call me back':'আমাকে কল করুন','Dose times planner':'ডোজের সময় পরিকল্পনা','Supply calculator':'ওষুধ কতদিন চলবে','Add to calendar':'ক্যালেন্ডারে যোগ করুন','Create reminders':'রিমাইন্ডার তৈরি করুন'});
 const unitOf=p=>{const m=String(p.pack||'').match(/(\d+)\s*([A-Za-z]+)/);return m&&+m[1]>1?{n:+m[1],w:m[2].replace(/s$/i,'').toLowerCase()}:null};
 // --- Shop: price per unit on cards
 const card2=card;card=function(p){const a=card2.apply(this,arguments);try{const u=unitOf(p),pe=a.querySelector('.price');if(u&&pe&&!a.querySelector('.ppu'))pe.after(h('small',{class:'muted ppu'},'৳'+(eff(p)/u.n).toFixed(2)+' / '+u.w))}catch(e){}return a};

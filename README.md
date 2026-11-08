@@ -92,6 +92,12 @@ See CHANGELOG. Health notes (blood pressure, sugar, water) are general informati
 ## New in 2.1.0
 Per-unit prices are worked out from the pack text (for example "10 tabs"), so products whose pack text has no leading number show none. "Same ingredient, other brands" matches on the generic name only; strength and pack can differ, which the page says. Barcode scan needs the browser's BarcodeDetector (Chrome on Android and some desktops) and camera permission. The dose planner and supply calculator are arithmetic helpers, not medical advice.
 
+## Design (3.0.0)
+`assets/css/design.css` holds the identity: colours (tokens at the top: change `--deep`, `--pri`, `--acc` there), fonts (@font-face for the files in `assets/fonts`, licences included) and the header, hero, card, footer and form styles. To change the look, edit that file only. Fonts are about 290 KB in total; the Bengali files load only when Bengali text (including the taka sign) is on the page and are then cached.
+
+## New in 3.1.0 (admin panel)
+Sidebar groups, a "Needs attention" strip, new-order alerts (title count, optional beep and desktop notification), keyboard shortcuts (`?`) and compact tables. Alerts work only while the admin page is open in a browser tab; they are not push notifications to a closed browser. Browsers allow sound only after you have clicked on the page once.
+
 ## Real server mode (works like a real site)
 
 The project runs in **two modes** with the same pages:

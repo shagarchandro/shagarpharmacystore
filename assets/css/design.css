@@ -1,0 +1,188 @@
+/* design.css (v3.0): the visual identity layer. Loaded after styles.css and admin.css, before responsive.css.
+   Idea: a neighbourhood pharmacy counter. Signage green header, medicine-pack cards with a colour-coded edge,
+   an amber price sticker, a red Rx stamp, and a foil blister strip carrying the three service facts.
+   Fonts are local (assets/fonts): Bricolage Grotesque for headings, Hind Siliguri for text (Latin and Bengali). */
+
+/* ---------- fonts ---------- */
+@font-face{font-family: 'Hind Siliguri'; font-style: normal; font-display: swap; font-weight: 400; src:url(../fonts/hind-siliguri-bengali-400-normal.woff2) format('woff2'); unicode-range: U+0951-0952,U+0964-0965,U+0980-09FE,U+1CD0,U+1CD2,U+1CD5-1CD6,U+1CD8,U+1CE1,U+1CEA,U+1CED,U+1CF2,U+1CF5-1CF7,U+200C-200D,U+20B9,U+25CC,U+A8F1;}
+@font-face{font-family: 'Hind Siliguri'; font-style: normal; font-display: swap; font-weight: 400; src:url(../fonts/hind-siliguri-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+@font-face{font-family: 'Hind Siliguri'; font-style: normal; font-display: swap; font-weight: 600; src:url(../fonts/hind-siliguri-bengali-600-normal.woff2) format('woff2'); unicode-range: U+0951-0952,U+0964-0965,U+0980-09FE,U+1CD0,U+1CD2,U+1CD5-1CD6,U+1CD8,U+1CE1,U+1CEA,U+1CED,U+1CF2,U+1CF5-1CF7,U+200C-200D,U+20B9,U+25CC,U+A8F1;}
+@font-face{font-family: 'Hind Siliguri'; font-style: normal; font-display: swap; font-weight: 600; src:url(../fonts/hind-siliguri-latin-600-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+@font-face{font-family: 'Hind Siliguri'; font-style: normal; font-display: swap; font-weight: 700; src:url(../fonts/hind-siliguri-bengali-700-normal.woff2) format('woff2'); unicode-range: U+0951-0952,U+0964-0965,U+0980-09FE,U+1CD0,U+1CD2,U+1CD5-1CD6,U+1CD8,U+1CE1,U+1CEA,U+1CED,U+1CF2,U+1CF5-1CF7,U+200C-200D,U+20B9,U+25CC,U+A8F1;}
+@font-face{font-family: 'Hind Siliguri'; font-style: normal; font-display: swap; font-weight: 700; src:url(../fonts/hind-siliguri-latin-700-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+@font-face{font-family: 'Bricolage Grotesque Variable'; font-style: normal; font-display: swap; font-weight: 200 800; src:url(../fonts/bricolage-grotesque-latin-wght-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+
+/* ---------- tokens ---------- */
+:root{
+  --display:"Bricolage Grotesque Variable","Hind Siliguri","Noto Sans Bengali","Segoe UI",system-ui,sans-serif;
+  --body:"Hind Siliguri","Noto Sans Bengali","Segoe UI",system-ui,sans-serif;
+  --serif:var(--display);
+  --r:10px;--rc:7px;
+  --sh:none;--lift:0 24px 60px -24px #0a2a20aa;
+}
+:root:not([data-palette]),:root[data-palette=forest]{
+  --bg:#f1f5f3;--fg:#0f2a24;--card:#ffffff;--br:#cfdad6;--pri:#00774a;--pri2:#005c39;--mint:#e3f0ea;--mut:#475d56;
+  --acc:#ffc42e;--onpri:#ffffff;--ontoast:#ffffff;--bad:#b3261e;--ok:#0b6b3f;--warn:#8a5a00;
+  --deep:#0a3a2c;--deep2:#062a20;--hero2:#00774a;--glow:#ffc42e40;--cap:#f1dca0;--sidefg:#dcebe0;
+  --foil1:#eef3f1;--foil2:#c9d5d0;--foilbr:#b3c2bb;--cell1:#d4dfda;--cell2:#e9f0ed;--cellfg:#0f2a24;--cellmut:#3d544c;
+}
+[data-theme=dark]{--sh:none;--lift:0 24px 60px -24px #000c}
+:root[data-theme=dark]:not([data-palette]),:root[data-theme=dark][data-palette=forest]{
+  --bg:#0b1612;--fg:#e7f1ec;--card:#11211b;--br:#27413a;--pri:#3fd592;--pri2:#7ae6b5;--mint:#16322a;--mut:#a2bdb1;
+  --acc:#ffc42e;--onpri:#05241a;--ontoast:#05241a;--bad:#ff8f84;--ok:#6ee7a8;--warn:#fbd073;
+  --deep:#0b2a20;--deep2:#071b15;--hero2:#146b4b;--glow:#ffc42e30;--cap:#f1dca0;--sidefg:#d5e8db;
+  --foil1:#22352f;--foil2:#162620;--foilbr:#2f4a41;--cell1:#101d18;--cell2:#1b2e27;--cellfg:#e7f1ec;--cellmut:#a2bdb1;
+}
+/* the other palettes keep their own colours; give them the foil/cell tokens too */
+[data-palette=teal],[data-palette=ocean],[data-palette=plum]{--foil1:color-mix(in srgb,var(--mint) 70%,#fff);--foil2:color-mix(in srgb,var(--mint) 60%,var(--br));--foilbr:var(--br);--cell1:color-mix(in srgb,var(--mint) 80%,var(--br));--cell2:color-mix(in srgb,var(--mint) 70%,#fff);--cellfg:var(--fg);--cellmut:var(--mut)}
+[data-theme=dark][data-palette=teal],[data-theme=dark][data-palette=ocean],[data-theme=dark][data-palette=plum]{--foil1:color-mix(in srgb,var(--mint) 70%,#000);--foil2:color-mix(in srgb,var(--card) 80%,#000);--cell1:color-mix(in srgb,var(--card) 70%,#000);--cell2:color-mix(in srgb,var(--mint) 60%,#000)}
+
+/* ---------- base type ---------- */
+html{scroll-behavior:auto}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+body{font-family:var(--body);font-size:17px;line-height:1.55;font-variant-numeric:tabular-nums}
+h1,h2,h3,.brand{font-family:var(--display);font-weight:700;letter-spacing:-.018em}
+h1{font-size:clamp(2.05rem,4.6vw,3.3rem);line-height:1.04;margin:.4rem 0 1rem}
+h2{font-size:1.65rem;line-height:1.12;margin:2.4rem 0 1rem}
+h3{font-size:1.15rem;line-height:1.2}
+main p{max-width:70ch}
+.card p,.foot p,td p,dd,li p{max-width:none}
+:focus-visible{outline:2px solid var(--fg);outline-offset:2px;box-shadow:0 0 0 5px color-mix(in srgb,var(--acc) 85%,transparent)}
+
+/* ---------- controls ---------- */
+input,select,textarea,button,.btn,.btn2{border-radius:var(--rc);border:1.5px solid color-mix(in srgb,var(--fg) 28%,var(--br));padding:.55rem .85rem;transition:background .12s,border-color .12s}
+input:focus,select:focus,textarea:focus{border-color:var(--pri)}
+button:hover:not(:disabled){background:var(--mint);border-color:color-mix(in srgb,var(--fg) 45%,var(--br))}
+.btn{background:var(--pri);border-color:var(--pri);color:var(--onpri);box-shadow:none;font-weight:700}
+button.btn:hover:not(:disabled),a.btn:hover{background:var(--pri2);border-color:var(--pri2);transform:none}
+.btn2{background:transparent}
+a.btn2:hover{background:var(--mint)}
+
+/* ---------- header: signage band ---------- */
+.bar{display:grid;align-items:center;gap:.55rem 1rem;padding:.65rem 1.2rem;background:var(--deep);color:#fff;border-bottom:0;backdrop-filter:none;
+  grid-template-columns:auto 1fr auto;grid-template-areas:"brand search tools" "nav nav nav"}
+.bar .brand{grid-area:brand;color:#fff;font-size:1.35rem;display:flex;align-items:center;gap:.45rem;white-space:nowrap}
+.bar .brand .cross{display:grid;place-items:center;width:1.9rem;height:1.9rem;border-radius:6px;background:var(--acc);color:#2b1d00;font-size:1.05rem}
+.bar nav{grid-area:nav;gap:.15rem;padding-top:.45rem;border-top:1px solid #ffffff26}
+.bar nav a{color:#e4f2ec;border-radius:var(--rc);padding:.4rem .8rem;font-weight:500}
+.bar nav a:hover{background:#ffffff1f;color:#fff}
+.bar nav a[aria-current=page]{background:#fff;color:var(--deep);font-weight:700;box-shadow:none}
+.bar .hsearch{grid-area:search;max-width:520px;margin:0}
+.bar .hsearch input{border-radius:var(--rc);background:#fff;color:#0f2a24;border-color:#fff;padding-left:.9rem}
+.bar .hsearch input::placeholder{color:#5b6f68}
+.bar .hsearch button{background:var(--acc);color:#2b1d00;border-color:var(--acc);font-weight:800}
+.bar .hsearch button:hover:not(:disabled){background:#ffd259;border-color:#ffd259}
+.bar .tools{grid-area:tools;gap:.35rem;flex-wrap:nowrap;margin-left:0}
+.bar .tools button{background:transparent;color:#fff;border-color:#ffffff59;padding:.35rem .6rem;min-height:2.3rem}
+.bar .tools button:hover:not(:disabled){background:#ffffff24;border-color:#fff}
+.bar .tools a{color:#fff;font-weight:700;white-space:nowrap}
+.bar .tools a.staff{color:#cfe6dc;font-weight:500}
+.bar .openb{background:#ffffff1f;color:#fff;border-color:#ffffff59}
+.bar .openb.on{background:#fff;color:var(--deep);border-color:#fff}
+.bar .navtoggle{grid-area:tog;background:transparent;color:#fff;border-color:#ffffff59}
+.bar.scrolled{box-shadow:0 8px 24px -16px #000c}
+@media (min-width:1360px){.bar{grid-template-columns:auto auto 1fr auto;grid-template-areas:"brand nav search tools"}.bar nav{border-top:0;padding-top:0}.bar .hsearch{margin-left:auto}}
+@media (max-width:700px){
+  .bar{grid-template-columns:1fr auto auto;grid-template-areas:"brand cart tog" "search search search" "tools tools tools" "nav nav nav";padding:.55rem .8rem}
+  .bar:not(.navopen) .hsearch,.bar:not(.navopen) nav,.bar:not(.navopen) .tools>*:not(.cartlink){display:none}
+  .bar:not(.navopen){grid-template-areas:"brand cart tog"}
+  .bar .tools{display:contents}.bar .tools .cartlink{grid-area:cart}
+  .bar.navopen .tools{display:flex;flex-wrap:wrap;grid-area:tools}.bar.navopen .tools .cartlink{grid-area:auto}
+  .bar .navtoggle{order:0}
+}
+
+/* ---------- hero: headline on paper, services on a foil blister strip ---------- */
+.hero-wrap{display:grid;gap:1.4rem;align-items:center;margin:.6rem 0 1.4rem}
+@media (min-width:900px){.hero-wrap{grid-template-columns:1.15fr .85fr;gap:3rem}}
+.hero{position:static;overflow:visible;background:none;color:var(--fg);padding:0;border-radius:0;margin:0}
+.hero::before,.hero::after{content:none}
+.hero h1{color:var(--fg);max-width:13ch;font-size:clamp(2.3rem,5.6vw,4rem);line-height:1}
+.hero p{max-width:44ch;opacity:1;color:var(--mut);font-size:1.12rem}
+.hero .row{margin-top:1.2rem}
+.hero-wrap .offers{display:grid;grid-template-columns:1fr;gap:.7rem;margin:0;padding:1rem;border-radius:20px;background:linear-gradient(145deg,var(--foil1),var(--foil2));border:1px solid var(--foilbr);box-shadow:inset 0 1px 0 #ffffff99}
+.hero-wrap .offers .card{display:flex;flex-direction:column;justify-content:center;padding:.8rem 1.5rem;border-radius:34px;border:1px solid var(--foilbr);background:linear-gradient(180deg,var(--cell1),var(--cell2));box-shadow:inset 0 3px 6px #00000033,0 1px 0 #ffffff80;color:var(--cellfg)}
+.hero-wrap .offers .card b{font:700 1.12rem var(--display)}
+.hero-wrap .offers .card p{margin:.1rem 0 0;color:var(--cellmut);font-size:.95rem}
+/* when the home page has no wrapper (other layouts) keep the offers readable */
+.offers .card{background:var(--mint);border-color:transparent}
+
+/* ---------- panels: borders carry the structure, no shadows ---------- */
+.card{border-radius:var(--r);box-shadow:none}
+.filters{border-radius:var(--r)}
+details{border-radius:var(--rc);border-color:color-mix(in srgb,var(--fg) 22%,var(--br))}
+dialog{border-radius:12px;box-shadow:var(--lift)}
+.login{border-radius:14px;box-shadow:none;border-color:color-mix(in srgb,var(--fg) 22%,var(--br))}
+table{border-radius:var(--rc)}.scroll{border-radius:var(--rc)}
+th{background:var(--mint);color:var(--fg)}
+.kpi{border-left-width:4px;border-radius:var(--r)}
+.kpi b{font-family:var(--display)}
+.toast{border-radius:var(--rc);box-shadow:var(--lift)}
+.chip,.tag.st,.timeline li{border-radius:99px}
+.notice{border-radius:var(--rc);background:var(--acc);color:#2b1d00}
+
+/* ---------- medicine packs ---------- */
+article.card{--cat:var(--pri);position:relative;display:flex;flex-direction:column;padding:0;overflow:hidden;border-radius:8px;border:1px solid color-mix(in srgb,var(--fg) 22%,var(--br));transition:border-color .12s}
+article.card:hover{transform:none;border-color:var(--fg)}
+article.card::before{content:"";display:block;height:6px;background:var(--cat);flex:none}
+article.card>img{width:100%;aspect-ratio:12/6.6;border-radius:0;background:var(--mint);object-fit:cover}
+article.card>*:not(img){margin-left:.95rem;margin-right:.95rem}
+article.card>h3{margin-top:.8rem}
+article.card>*:last-child{margin-bottom:.95rem}
+article.card .row{margin-bottom:.2rem}
+.price{display:inline-block;align-self:flex-start;background:var(--acc);color:#2b1d00;padding:.02rem .55rem;border-radius:4px;font:800 1.15rem var(--display);font-variant-numeric:tabular-nums}
+.price s{font:500 .85rem var(--body);opacity:.75;margin-left:.3rem}
+.tag.rx{background:transparent;color:var(--bad);border:2px solid var(--bad);border-radius:4px;padding:0 .4rem;font-weight:800;margin-left:0;letter-spacing:.01em}
+[data-theme=dark] .tag.rx{color:var(--bad)}
+.ok::before{content:"● ";font-size:.7em;vertical-align:.1em}
+.viewtog button,.row[aria-label=Categories] button{border-radius:var(--rc)}
+.row[aria-label=Categories] button.btn{border-color:var(--pri)}
+
+/* ---------- footer ---------- */
+.foot{max-width:1160px;margin:2.4rem auto 1.4rem;padding:1.6rem;border:0;border-radius:14px;background:var(--deep);color:#cfe3d9}
+.foot a{color:#fff}.foot a:hover{color:var(--acc)}
+.foot-h{color:#fff;font-family:var(--display)}
+.foot-bar{border-top-color:#ffffff26;color:#b5cfc3}
+.foot .muted{color:#b5cfc3}
+@media (max-width:700px){.foot{margin:1.6rem .6rem 1rem;border-radius:12px}}
+
+/* ---------- floating helpers on the new surfaces ---------- */
+.cmpbar{border-radius:var(--rc);box-shadow:var(--lift)}
+.totop{border-radius:var(--rc)}
+dialog.qv .price{margin:.2rem 0}
+article.card>p,article.card>small{margin-top:.15rem;margin-bottom:.15rem}
+article.card>h3{margin-bottom:.1rem}
+article.card>.price{margin-top:.5rem;margin-bottom:.2rem}
+article.card .muted{font-size:.93rem}
+.bar .brand{min-width:0}.bar .brand span:last-child{overflow:hidden;text-overflow:ellipsis}
+@media (max-width:700px){.bar .brand{font-size:1.1rem}.bar .brand .cross{width:1.6rem;height:1.6rem}.bar .tools .cartlink{font-size:.95rem}.bar .navtoggle{min-width:2.4rem;padding:.3rem .5rem}}
+article.card .row button{padding:.4rem .6rem}
+/* spec sheets (product details, status guide): a label column and a value column, like a pack insert */
+main dl{display:grid;grid-template-columns:minmax(7.5rem,12rem) 1fr;margin:.8rem 0;max-width:46rem}
+main dt{color:var(--mut);font-size:.92rem;padding:.5rem .8rem .5rem 0;border-bottom:1px solid var(--br)}
+main dd{margin:0;padding:.5rem 0;border-bottom:1px solid var(--br);font-weight:600}
+main .card>img:not(article>img){border-radius:var(--rc);max-width:260px}
+@media (max-width:520px){main dl{grid-template-columns:1fr}main dt{border-bottom:0;padding-bottom:0}}
+.price{margin-right:.5rem}
+/* admin and login: same identity, calmer headings */
+body.adm h1{font-size:clamp(1.7rem,3vw,2.25rem);margin:.2rem 0 .9rem}
+body.adm h2{font-size:1.3rem;margin:1.8rem 0 .7rem}
+.login h1{font-size:1.6rem;line-height:1.15}
+.foot label,.foot .pal{color:#cfe3d9}.foot .pal select{color:var(--fg)}
+
+/* admin 3.1: grouped sidebar, compact tables, attention strip */
+.navgrp{margin:.15rem 0}
+.navgrp>summary{list-style:none;cursor:pointer;padding:.5rem .7rem .25rem;font:700 .72rem var(--body);letter-spacing:.08em;text-transform:uppercase;color:#9fc4b4;display:flex;justify-content:space-between;align-items:center;border-radius:6px}
+.navgrp>summary::-webkit-details-marker{display:none}
+.navgrp>summary::after{content:"▾";transition:transform .15s}
+.navgrp:not([open])>summary::after{transform:rotate(-90deg)}
+.navgrp>summary:hover{color:#fff}
+body.compact #app td,body.compact #app th{padding:.28rem .55rem;font-size:.9rem}
+.attn{margin:0 0 1rem}.attn h2{margin:.2rem 0 .6rem;font-size:1.1rem}
+.attn-chip b{font:800 1.1rem var(--display);margin-right:.2rem}
+dialog.kbd{width:min(30rem,94vw)}dialog.kbd dl{grid-template-columns:9rem 1fr}kbd{font:600 .85rem var(--body);background:var(--mint);border:1px solid var(--br);border-radius:4px;padding:.05rem .4rem}
+#side details.navgrp{background:transparent;border:0;border-radius:0;padding:0;margin:.35rem 0;box-shadow:none}
+#side details.navgrp>summary{padding:.45rem .7rem .3rem;margin:0;font-weight:700;background:none;color:#a9cdbd}
+#side details.navgrp[open]>summary{margin:0}
+/* cards inside a grid are spaced by the grid gap only (the stack margin made the first card sit higher) */
+.grid>.card,.grid>article,.kpis>.card,.hgrid>.card{margin-top:0}
+body.adm #app .grid{margin-bottom:1rem}
