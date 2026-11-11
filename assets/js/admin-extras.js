@@ -278,7 +278,92 @@ const attnAdd=r=>{try{const can=t=>(typeof ACC!=='undefined'&&ACC[R]||[]).includ
  const items=[['rx','Prescriptions to review',(D.orders||[]).filter(o=>o.status==='Prescription Review').length],['orders','Orders waiting',(D.orders||[]).filter(o=>o.status==='Pending').length],['alerts','Low stock',D.products.filter(p=>stock(D,p.id)<p.reorder).length],['alerts','Expiring soon',D.batches.filter(b=>b.qty>0&&b.exp>=today()&&b.exp<=lim).length],['alerts','Expired, to write off',D.batches.filter(b=>b.qty>0&&b.exp<today()).length]].filter(([t,l,n])=>n>0&&can(t));
  r.prepend(h('section',{class:'attn','aria-label':T('Needs attention')},h('h2',{},T('Needs attention')),items.length?h('div',{class:'row'},items.map(([t,l,n])=>h('button',{type:'button',class:'btn2 attn-chip',onclick:()=>go2(t)},h('b',{},n),' '+l))):h('p',{class:'ok'},'✓ '+T('All clear'))))}catch(e){console.error(e)}return r};
 
-window.ADMIN_WRAPS=[{id:'dash',fn:dashAdd},{id:'dash',fn:attnAdd},{id:'account',fn:accountAdd},{id:'users',fn:usersAdd},{id:'settings',fn:policyAdd}];
+// ---- v3.2 POS: live search, quantity steppers, totals with change due, Rx notice, held carts, till summary ----
+if(typeof I18!=='undefined')Object.assign(I18.bn,{'Total':'মোট','Change':'ফেরত','Short by':'কম আছে','Exact':'ঠিক টাকা','Hold cart':'কার্ট ধরে রাখুন','Held carts':'ধরে রাখা কার্ট','Clear cart':'কার্ট খালি করুন','Today at the till':'আজকের কাউন্টার','Receipt':'রসিদ','Frequent items':'ঘন ঘন বিক্রি','Use max points':'সর্বোচ্চ পয়েন্ট','Prescription reference':'প্রেসক্রিপশন রেফারেন্স'});
+let POSF={disc:'',pay:'Cash',cash:'',ph:'',rd:'',rx:''},posSalesLen=-1;
+const HOLDS='mc_holds',holds=()=>{try{return JSON.parse(localStorage.getItem(HOLDS)||'[]')}catch(e){return[]}},setHolds=L=>{try{localStorage.setItem(HOLDS,JSON.stringify(L.slice(-12)))}catch(e){}};
+const PHRE=/^(\+?88)?01[3-9]\d{8}$/;
+const posAdd=r=>{try{
+ if(typeof receipt==='function'&&receipt!==receipt2)receipt=receipt2;
+ if(posSalesLen>=0&&D.sales.length>posSalesLen)POSF={disc:'',pay:'Cash',cash:'',ph:'',rd:'',rx:''};posSalesLen=D.sales.length;
+ const q=r.querySelector('#pq'),tables=r.querySelectorAll('table'),cartTbl=tables[0],histTbl=tables[1],quick=r.querySelector('[aria-label="Quick add"]'),rowIn=[...r.querySelectorAll(':scope>.row')].find(x=>x.querySelector('[aria-label="Cash received"]')),sumP=r.querySelector(':scope>p.price');
+ if(!q||!cartTbl||!rowIn)return r;
+ const I={disc:rowIn.querySelector('[aria-label="Discount ৳"]'),pay:rowIn.querySelector('select'),cash:rowIn.querySelector('[aria-label="Cash received"]'),ph:rowIn.querySelector('[aria-label="Customer mobile (optional)"]'),rd:rowIn.querySelector('[aria-label="Redeem points"]')};
+ const done=[...r.querySelectorAll(':scope>button')].find(b=>b.textContent==='Complete sale');
+ const pid2p=id=>D.products.find(p=>p.id===id),isRx=l=>!!(pid2p(l.pid)&&pid2p(l.pid).rx);
+ const add=p=>{const l=cartPOS.find(x=>x.pid===p.id)||(cartPOS.push({pid:p.id,name:p.name,price:eff(p),qty:0}),cartPOS.at(-1));if(l.qty+1>stock(D,p.id)){if(!l.qty)cartPOS.pop();return toast('Insufficient unexpired stock',1)}l.qty++;POSF.q='';go();setTimeout(()=>{const n=document.getElementById('pq');if(n)n.focus()},0)};
+ // remembered field values
+ Object.keys(I).forEach(k=>{if(I[k]&&POSF[k]!==''&&POSF[k]!==undefined)I[k].value=POSF[k]});
+ // totals
+ const calc=()=>{const sub=cartPOS.reduce((a,l)=>a+l.price*l.qty,0),d=Math.min(Math.max(+I.disc.value||0,0),sub),rd=Math.max(+I.rd.value||0,0),tot=Math.max(0,sub-d-rd),cash=+I.cash.value||0,isCash=I.pay.value==='Cash';return{sub,d,rd,tot,cash,isCash,change:isCash?Math.max(0,cash-tot):0,short:isCash&&I.cash.value!==''&&cash<tot?tot-cash:0}};
+ const lSub=h('span',{}),lDisc=h('span',{}),lPts=h('span',{}),lTot=h('b',{class:'pos-total'}),lChg=h('div',{class:'pos-change',role:'status','aria-live':'polite'});
+ const upd=()=>{const c=calc();lSub.textContent=money(c.sub);lDisc.textContent=c.d?'−'+money(c.d):'—';lPts.textContent=c.rd?'−'+money(c.rd):'—';lTot.textContent=money(c.tot);
+  lChg.className='pos-change'+(c.short?' bad':c.change?' ok':'');lChg.textContent=!c.isCash?T('Total')+': '+money(c.tot):c.short?T('Short by')+' '+money(c.short):c.cash?T('Change')+' '+money(c.change):''};
+ Object.entries(I).forEach(([k,el])=>{if(!el)return;const ev=el.tagName==='SELECT'?'change':'input';el.addEventListener(ev,()=>{POSF[k]=el.value;upd()})});
+ const chips=h('div',{class:'row pos-chips',role:'group','aria-label':'Cash received quick buttons'},h('button',{type:'button',class:'btn2',onclick(){const c=calc();I.cash.value=c.tot;POSF.cash=String(c.tot);I.pay.value='Cash';POSF.pay='Cash';upd()}},T('Exact')),...[100,200,500,1000].map(v=>h('button',{type:'button',class:'btn2',onclick(){I.cash.value=v;POSF.cash=String(v);I.pay.value='Cash';POSF.pay='Cash';upd()}},'৳'+v)));
+ const panel=h('div',{class:'pos-sum'},h('div',{class:'pos-line'},h('span',{},'Subtotal'),lSub),h('div',{class:'pos-line'},h('span',{},'Discount'),lDisc),h('div',{class:'pos-line'},h('span',{},'Points redeemed'),lPts),h('div',{class:'pos-line pos-big'},h('span',{},T('Total')),lTot),chips,lChg);
+ // customer info
+ const cinfo=h('small',{class:'muted','aria-live':'polite'});
+ const showC=()=>{const ph=I.ph.value.trim();cinfo.replaceChildren();if(!PHRE.test(ph))return;const np=typeof nph==='function'?nph(ph):ph,o=(D.orders||[]).find(x=>nph(x.phone)===np),nmx=(D.cust&&D.cust[ph]&&D.cust[ph].name)||(o&&o.customer)||'',pts=loyAvail(D,ph);
+  cinfo.append(...[ (nmx?nmx+' · ':'')+pts+' points available ',pts>0?h('button',{type:'button',class:'linkbtn',onclick(){const c=calc(),mx=Math.min(pts,Math.floor((c.sub-c.d)/2));I.rd.value=mx;POSF.rd=String(mx);upd()}},T('Use max points')):null ].filter(x=>x!=null&&x!==false))};
+ I.ph.addEventListener('input',showC);showC();
+ // Rx notice with an inline reference (used instead of the pop-up prompt)
+ const rxL=cartPOS.filter(isRx),canRx=['Owner','Pharmacist'].includes(R);let rxBox=null,rxIn=null;
+ if(rxL.length){rxIn=h('input',{'aria-label':T('Prescription reference'),placeholder:'Doctor, registration no., date',value:POSF.rx||'',maxlength:160,oninput(e){POSF.rx=e.target.value}});
+  rxBox=h('div',{class:'card warn',role:'note'},h('b',{},'Rx '),'This sale has prescription items ('+rxL.map(l=>l.name).join(', ')+'). '+(canRx?'Enter the prescription reference (at least 6 characters) before completing.':'Only a pharmacist or the owner can complete it. Ask one to finish this sale.'),canRx?h('label',{},T('Prescription reference'),rxIn):null)}
+ if(done)done.addEventListener('click',()=>{if(!rxL.length||!canRx)return;const old=window.prompt;window.prompt=()=>(rxIn&&rxIn.value||'');setTimeout(()=>{window.prompt=old},0)},true);
+ // search with live results
+ q.removeAttribute('list');const dl=r.querySelector('datalist');if(dl)dl.remove();
+ const list=h('ul',{class:'pos-results',role:'listbox','aria-label':'Matching products',hidden:true});let cur=0,hits=[];
+ const draw=()=>{const v=q.value.trim().toLowerCase();hits=v.length<2?[]:D.products.filter(p=>(p.name+' '+(p.generic||'')+' '+(p.sku||'')+' '+(p.barcode||'')).toLowerCase().includes(v)).sort((a,b)=>(stock(D,b.id)>0)-(stock(D,a.id)>0)||a.name.localeCompare(b.name)).slice(0,8);cur=0;
+  list.hidden=!hits.length;list.replaceChildren(...hits.map((p,i)=>{const st=stock(D,p.id);return h('li',{role:'option','aria-selected':String(i===0)},h('button',{type:'button',class:i===0?'on':'',disabled:!st,onclick:()=>add(p)},h('b',{},p.name),' ',h('span',{class:'muted'},[p.strength&&p.strength!=='—'?p.strength:'',p.pack].filter(Boolean).join(' · ')),p.rx?h('span',{class:'tag rx'},'Rx'):null,h('span',{class:'pos-r'},st?money(eff(p))+' · '+st+' in stock':'Out of stock')))}))};
+ const mark=()=>[...list.children].forEach((li,i)=>{const on=i===cur;li.setAttribute('aria-selected',String(on));li.firstChild.classList.toggle('on',on)});
+ q.addEventListener('input',draw);
+ q.addEventListener('keydown',e=>{if(e.key==='ArrowDown'&&hits.length){e.preventDefault();cur=Math.min(hits.length-1,cur+1);mark()}else if(e.key==='ArrowUp'&&hits.length){e.preventDefault();cur=Math.max(0,cur-1);mark()}else if(e.key==='Escape'){q.value='';draw()}
+  else if(e.key==='Enter'){const v=q.value.trim().toLowerCase(),exact=D.products.find(x=>x.barcode===v||x.name.toLowerCase()===v||(x.sku||'').toLowerCase()===v);if(!exact&&hits.length){e.preventDefault();e.stopImmediatePropagation();const p=hits[cur];if(stock(D,p.id)>0)add(p);else toast('Out of stock',1)}}},true);
+ // frequent items
+ if(quick){const cnt={},cut=Date.now()-60*864e5;(D.sales||[]).filter(x=>!x.refunded&&new Date(x.at)>=cut).forEach(x=>x.items.forEach(i=>{cnt[i.pid]=(cnt[i.pid]||0)+i.qty}));
+  const top=D.products.filter(p=>stock(D,p.id)>0).sort((a,b)=>(cnt[b.id]||0)-(cnt[a.id]||0)).slice(0,8);quick.replaceChildren(h('small',{class:'muted'},T('Frequent items')+':'),...top.map(p=>h('button',{type:'button',onclick:()=>add(p)},p.name+' '+money(eff(p)))))}
+ // cart table: steppers, Rx stamps, stock hint
+ [...cartTbl.querySelectorAll('tbody tr')].forEach((tr,i)=>{const l=cartPOS[i];if(!l)return;const p=pid2p(l.pid),st=p?stock(D,l.pid):0,tds=tr.children;
+  tds[0].replaceChildren(...[ l.name,p&&p.rx?h('span',{class:'tag rx'},'Rx'):null,h('small',{class:'muted'},' '+money(l.price)+' each') ].filter(x=>x!=null&&x!==false));
+  const set=n=>{n=Math.floor(+n);if(!(n>=1)){cartPOS=cartPOS.filter(x=>x!==l);return go()}if(n>st){toast('Only '+st+' in stock',1);n=st}l.qty=n;go()};
+  tds[1].replaceChildren(h('div',{class:'stepper'},h('button',{type:'button','aria-label':'One less '+l.name,onclick:()=>set(l.qty-1)},'−'),h('input',{type:'number',min:1,max:st,value:l.qty,'aria-label':'Quantity of '+l.name,onchange:e=>set(e.target.value)}),h('button',{type:'button','aria-label':'One more '+l.name,onclick:()=>set(l.qty+1)},'+')))});
+ const clear=h('button',{type:'button',class:'btn2',onclick(){if(!cartPOS.length)return toast('Cart empty',1);cartPOS=[];POSF={disc:'',pay:'Cash',cash:'',ph:'',rd:'',rx:''};go()}},T('Clear cart'));
+ const hold=h('button',{type:'button',class:'btn2',onclick(){if(!cartPOS.length)return toast('Cart empty',1);const L=holds();L.push({id:uid('H'),at:Date.now(),cart:cartPOS,f:POSF});setHolds(L);cartPOS=[];POSF={disc:'',pay:'Cash',cash:'',ph:'',rd:'',rx:''};toast('Cart held');go()}},T('Hold cart'));
+ const HL=holds(),heldBox=HL.length?h('div',{class:'pos-held'},h('b',{},T('Held carts')),...HL.map(x=>{const t=x.cart.reduce((a,l)=>a+l.price*l.qty,0);return h('span',{class:'pos-hold'},new Date(x.at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})+' · '+x.cart.length+' item(s) · '+money(t)+' ',
+  h('button',{type:'button',class:'btn2',onclick(){if(cartPOS.length)return toast('Hold or clear the current cart first',1);cartPOS=x.cart.filter(l=>pid2p(l.pid));POSF=Object.assign({disc:'',pay:'Cash',cash:'',ph:'',rd:'',rx:''},x.f||{});setHolds(holds().filter(y=>y.id!==x.id));go()}},'Resume'),
+  h('button',{type:'button',class:'btn2','aria-label':'Delete held cart',onclick(){setHolds(holds().filter(y=>y.id!==x.id));go()}},'×'))})):null;
+ // remove the old single-slot Suspend/Resume buttons (replaced by held carts)
+ [...r.querySelectorAll(':scope>button')].forEach(b=>{if(b.textContent==='Suspend'||b.textContent==='Resume')b.remove()});
+ if(sumP)sumP.remove();
+ // today at the till
+ const td=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Dhaka'}),ts=(D.sales||[]).filter(x=>!x.refunded&&new Date(x.at).toLocaleDateString('en-CA',{timeZone:'Asia/Dhaka'})===td),by={};ts.forEach(x=>{const m=String(x.pay||'Cash').replace(/\s*\(demo\)/,'');by[m]=(by[m]||0)+x.total});
+ const till=h('div',{class:'card'},h('h2',{},T('Today at the till')),h('p',{},ts.length+' sale(s) · '+money(ts.reduce((a,x)=>a+x.total,0))+(Object.keys(by).length?' ('+Object.entries(by).map(([k,v])=>k+' '+money(v)).join(' · ')+')':'')));
+ // sales history: receipt reprint
+ if(histTbl){const L=D.sales.slice(-10).reverse(),hr=histTbl.querySelector('thead tr');if(hr&&L.length){hr.append(h('th',{scope:'col'},''));[...histTbl.querySelectorAll('tbody tr')].forEach((tr,i)=>{const sale=L[i];if(sale)tr.append(h('td',{},h('button',{type:'button',class:'btn2',onclick:()=>receipt(sale)},T('Receipt'))))})}}
+ // layout: left = search and cart, right = customer, totals and the complete button
+ const left=h('div',{class:'posleft'}),right=h('div',{class:'posright'});
+ left.append(q,list);if(quick)left.append(quick);left.append(cartTbl,h('div',{class:'row'},hold,clear));if(heldBox)left.append(heldBox);
+ right.append(rowIn,cinfo);if(rxBox)right.append(rxBox);right.append(panel);if(done)right.append(done);
+ const hint=r.querySelector(':scope>p.muted'),grid=h('div',{class:'posgrid'},left,right);
+ [...r.children].forEach(c=>{if(c!==hint&&c!==histTbl&&!(c.tagName==='H2'))c.remove?.()});
+ const hh=[...r.querySelectorAll(':scope>h2')];
+ r.replaceChildren(...[hint,grid,till,...hh,histTbl].filter(Boolean));
+ upd()}catch(e){console.error(e)}return r};
+
+// ---- v3.2 receipt: a proper counter receipt (store, phone, items table, totals, payment, Rx reference) ----
+const receipt2=s=>{const st=D.settings||{},sub=s.items.reduce((a,i)=>a+i.qty*i.price,0),cashIn=s.pay==='Cash'?s.total+(s.change||0):null;
+ const row=(a,b,cls)=>h('tr',{class:cls||''},h('td',{},a),h('td',{class:'rn'},b));
+ const w=h('dialog',{class:'rcpt80','aria-label':'Receipt '+s.no},h('h2',{},st.store),st.phone?h('p',{class:'muted'},[st.address,st.phone].filter(Boolean).join(' · ')):null,
+  h('p',{},s.no+' · '+dhaka(s.at)),
+  h('table',{class:'rc-items'},h('thead',{},h('tr',{},['Item','Qty','Amount'].map((x,i)=>h('th',{scope:'col',class:i?'rn':''},x)))),h('tbody',{},s.items.map(i=>h('tr',{},h('td',{},i.name),h('td',{class:'rn'},i.qty+' × '+money(i.price)),h('td',{class:'rn'},money(i.qty*i.price)))))),
+  h('table',{class:'rc-tot'},h('tbody',{},row('Subtotal',money(sub)),s.disc?row('Discount','−'+money(s.disc)):null,s.loy?row('Points redeemed '+s.loy,'−'+money(s.loy)):null,row('Total',money(s.total),'rc-big'),row('Paid by',String(s.pay||'Cash').replace(/\s*\(demo\)/,'')),cashIn!==null?row('Cash received',money(cashIn)):null,row('Change',money(s.change||0)))),
+  s.rx?h('p',{class:'muted'},'Prescription: '+s.rx):null,s.by?h('p',{class:'muted'},'Served by: '+s.by):null,
+  h('p',{},st.receiptFooter),h('button',{type:'button',onclick:()=>print()},'Print'),h('button',{type:'button',onclick(){w.close();w.remove()}},'Close'));
+ w.addEventListener('close',()=>w.remove());document.body.append(w);w.showModal()};
+
+window.ADMIN_WRAPS=[{id:'dash',fn:dashAdd},{id:'dash',fn:attnAdd},{id:'pos',fn:posAdd},{id:'account',fn:accountAdd},{id:'users',fn:usersAdd},{id:'settings',fn:policyAdd}];
 
 window.ADMIN_EXTRAS=[
  {id:'insights',name:'Insights',icon:'🔍',roles:['Owner'],after:'reports',view:insights},

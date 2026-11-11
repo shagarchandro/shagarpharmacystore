@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.2.0 (POS)
+- **Live search:** type two letters and see matching medicines (name, strength, pack, stock, price, Rx mark); arrow keys and Enter pick one. Enter on a partial name now adds the top match (before, only an exact name or barcode worked); an exact barcode still adds immediately.
+- **Quantity steppers** (−, typed number, +) with the stock limit enforced, per-item price, Rx marks on prescription items, Clear cart.
+- **Totals panel with change due:** subtotal, discount, points, big total, quick cash buttons (Exact, 100, 200, 500, 1000) and a live "Change ৳x" or "Short by ৳x". The discount, payment, cash and mobile fields keep their values when another item is added.
+- **Customer:** after a valid mobile number, the name (if known) and points available show, with "Use max points".
+- **Prescription items:** a notice lists them; the prescription reference is typed into a field (no pop-up). Cashiers are told to ask a pharmacist (the existing rule that only a pharmacist or the owner completes Rx sales is unchanged).
+- **Held carts:** hold several carts and resume them, replacing the single Suspend/Resume slot. **Frequent items** (best sellers of the last 60 days) replace the first-eight quick buttons.
+- **Today at the till:** number of sales and totals per payment method. **Receipt:** store, address and phone, items table, subtotal, discount, points, total, payment, cash received, change, prescription reference and who served; any sale in the history can be reprinted.
+- Fix: text such as "null" could appear where an element was missing (health log without readings, POS lines) because native `append` and `replaceChildren` turn null into text; fixed in those places, and `tests/text_audit.py` now checks every storefront page and admin screen for stray null, undefined or NaN text (0 found).
+- Fix: `tests/print_receipt.py` clicked the keyboard-hint text instead of the Complete sale button (it failed on the original project too).
+- The sale record format and the server rules for sales are unchanged. Version 3.2.0, service worker mc-v16, new tests `tests/pos_v32.py` and `tests/server_pos_v32.py`.
+
 ## 3.1.0 (admin panel)
 - **Grouped sidebar:** the screens are now in five groups (Overview, Orders and sales, Products and stock, Money and reports, People and system). Groups collapse and remember their state; the group of the open screen stays open; short lists (for example the Cashier's) stay flat. Nothing was removed.
 - **Needs attention** strip at the top of the Dashboard: prescriptions to review, orders waiting, low stock, expiring soon, expired. Each chip opens the right screen; "All clear" when there is nothing.

@@ -98,6 +98,9 @@ Per-unit prices are worked out from the pack text (for example "10 tabs"), so pr
 ## New in 3.1.0 (admin panel)
 Sidebar groups, a "Needs attention" strip, new-order alerts (title count, optional beep and desktop notification), keyboard shortcuts (`?`) and compact tables. Alerts work only while the admin page is open in a browser tab; they are not push notifications to a closed browser. Browsers allow sound only after you have clicked on the page once.
 
+## New in 3.2.0 (POS)
+Held carts and the "Frequent items" list are kept in this browser (`mc_holds`); they are not shared between counters. Money rules are unchanged: sales are checked and stored by the same code as before (and by the server in real server mode). The new receipt is a dialog meant for the browser's print function; for a thermal printer set the paper size to 80 mm in the print dialog.
+
 ## Real server mode (works like a real site)
 
 The project runs in **two modes** with the same pages:

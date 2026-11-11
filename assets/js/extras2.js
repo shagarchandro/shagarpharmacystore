@@ -148,12 +148,12 @@ views.health=function(){const r=health0.apply(this,arguments);
    const val=x=>x.t==='bp'?x.a+'/'+x.b+(x.c?' · pulse '+x.c:''):x.t==='bg'?x.a+(x.c?' ('+({fasting:'fasting',after:'after meal',random:'random'}[x.c]||'')+')':''):String(x.a);
    const cl=x=>x.t==='bp'?bpClass(x.a,x.b):x.t==='bg'?bgClass(x.a,x.c):null;
    const last14=sel.slice(-14),ch=type==='bp'?spark([last14.map(x=>x.a),last14.map(x=>x.b)],'Blood pressure trend, solid line top number, dashed line bottom number'):spark([last14.map(x=>x.a)],names[type]+' trend');
-   body.replaceChildren(
+   body.replaceChildren(...[ 
     sel.length?h('p',{class:'muted'},names[type]+': '+sel.length+' reading(s)'):h('p',{class:'muted'},'No readings yet.'),ch||null,
     rec.length?h('div',{class:'scroll'},h('table',{},h('thead',{},h('tr',{},['Date','Reading','Note',''].map(x=>h('th',{scope:'col'},x)))),h('tbody',{},rec.map(x=>{const c=cl(x);return h('tr',{},h('td',{},new Date(x.at).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'})),h('td',{},val(x)),h('td',{class:c?SEV[c[0]]:''},c?c[1]:''),
      h('td',{},h('button',{type:'button',class:'btn2','aria-label':tr('Remove')+' '+val(x),onclick(){SVv('mc_hlog',logs().filter(y=>y.id!==x.id));draw()}},tr('Remove'))))})))):null,
     h('div',{class:'row'},h('button',{type:'button',class:'btn2',onclick(){const L2=logs();if(!L2.length)return toast('Nothing to export',1);dl('health-log.csv',['Date,Type,Value 1,Value 2,Pulse or context',...L2.map(x=>[x.at,x.t,x.a,x.b??'',x.c??''].join(','))].join('\n'))}},tr('Export CSV')),
-     h('button',{type:'button',class:'btn2',onclick(){if(confirm('Delete every saved reading on this device?')){SVv('mc_hlog',[]);draw()}}},'Clear all')))};
+     h('button',{type:'button',class:'btn2',onclick(){if(confirm('Delete every saved reading on this device?')){SVv('mc_hlog',[]);draw()}}},'Clear all')) ].filter(x=>x!=null&&x!==false))};
   const kind=h('select',{name:'k','aria-label':'Reading type',onchange(e){type=e.target.value;fields();draw()}},[['bp','Blood pressure'],['bg','Blood sugar'],['wt','Weight']].map(([v,l])=>h('option',{value:v},tr(l))));
   const a=h('input',{name:'a',type:'number',inputmode:'decimal',step:'any'}),b=h('input',{name:'b',type:'number',inputmode:'decimal',step:'any'}),c=h('input',{name:'c',type:'number',inputmode:'numeric'}),cx=h('select',{name:'x'},[['fasting','Fasting'],['after','2 hours after a meal'],['random','Random']].map(([v,l])=>h('option',{value:v},l)));
   const la=h('label',{}),lb=h('label',{}),lc=h('label',{}),lx=h('label',{},'When',cx);

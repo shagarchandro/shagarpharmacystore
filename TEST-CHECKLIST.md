@@ -158,3 +158,10 @@ Legend: **[auto]** passed in automated Chromium (Playwright) or jsdom runs durin
 - [ ] Turn on 🔔, leave the panel in a background tab, place an order from another device: the tab title count rises (sound and notification if allowed).
 - [ ] Press ? and try "g" then "o".
 - [ ] Look at the Dashboard on a phone: the attention chips wrap and the sidebar opens with the menu button.
+
+## v3.2.0 POS (manual check, at the real counter)
+- [ ] Scan a real barcode with your scanner: the item is added. Type "para" and press Enter: the top match is added.
+- [ ] Sell 2 items with a discount, pay with a 500 note: the change on screen matches your calculation.
+- [ ] Add a prescription item as a Pharmacist, type the reference, complete the sale: no pop-up, the receipt shows the reference. As a Cashier: you are told to ask a pharmacist.
+- [ ] Hold two carts, serve a third customer, resume the held ones.
+- [ ] Print a receipt on your real printer (set paper to 80 mm); check the Receipt button in the history.

@@ -9,3 +9,4 @@
 @media print{.cmpbar{display:none!important}.lbl-sheet{gap:.2cm}}
 @media print{.totop,.qvbtn{display:none!important}dialog.rcpt{display:block}}
 @media print{dialog.kbd{display:none!important}}
+@media print{dialog.rcpt80{width:80mm!important;max-width:80mm!important;margin:0!important;font-size:11pt}}

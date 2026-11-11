@@ -186,3 +186,25 @@ dialog.kbd{width:min(30rem,94vw)}dialog.kbd dl{grid-template-columns:9rem 1fr}kb
 /* cards inside a grid are spaced by the grid gap only (the stack margin made the first card sit higher) */
 .grid>.card,.grid>article,.kpis>.card,.hgrid>.card{margin-top:0}
 body.adm #app .grid{margin-bottom:1rem}
+
+/* POS 3.2 */
+.posgrid{display:grid;gap:1.2rem;margin:.6rem 0 1.2rem;align-items:start}
+@media (min-width:1000px){.posgrid{grid-template-columns:1.5fr 1fr}.posright{position:sticky;top:5rem}}
+.posleft>#pq{width:100%;font-size:1.1rem;padding:.7rem .9rem}
+.pos-results{list-style:none;margin:.2rem 0 .6rem;padding:0;border:1.5px solid var(--fg);border-radius:var(--rc);background:var(--card);overflow:hidden}
+.pos-results li+li{border-top:1px solid var(--br)}
+.pos-results button{width:100%;text-align:left;border:0;border-radius:0;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;padding:.55rem .8rem;background:transparent}
+.pos-results button.on{background:var(--mint)}.pos-results .pos-r{margin-left:auto;color:var(--mut)}
+.stepper{display:inline-flex;align-items:center;gap:.25rem}.stepper input{width:3.6rem;text-align:center;padding:.3rem}.stepper button{min-width:2.2rem}
+.posright .row{flex-direction:column;align-items:stretch}.posright .row label{display:flex;flex-direction:column;gap:.15rem}
+.pos-sum{border:1.5px solid var(--fg);border-radius:var(--r);padding:.8rem 1rem;margin:.8rem 0;background:var(--card)}
+.pos-line{display:flex;justify-content:space-between;padding:.15rem 0}
+.pos-big{border-top:1px solid var(--br);margin-top:.3rem;padding-top:.4rem;font-size:1.1rem}
+.pos-total{font:800 2rem var(--display);background:var(--acc);color:#2b1d00;padding:0 .6rem;border-radius:4px}
+.pos-chips{flex-direction:row!important;flex-wrap:wrap;margin:.5rem 0}.pos-change{font:700 1.3rem var(--display);min-height:1.8rem}
+.pos-change.ok{color:var(--ok)}.pos-change.bad{color:var(--bad)}
+.posright>button.btn{width:100%;font-size:1.15rem;padding:.8rem}
+.pos-held{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.6rem 0}.pos-hold{border:1px solid var(--br);border-radius:var(--rc);padding:.2rem .5rem;background:var(--card)}
+
+dialog.rcpt80{width:min(24rem,94vw)}dialog.rcpt80 table{width:100%;border-collapse:collapse}dialog.rcpt80 td,dialog.rcpt80 th{padding:.2rem .1rem;border:0;background:none;font-size:.95rem}dialog.rcpt80 .rn{text-align:right;white-space:nowrap}
+.rc-items thead th{border-bottom:1px dashed var(--fg)}.rc-tot{border-top:1px dashed var(--fg);margin-top:.4rem}.rc-big td{font:800 1.2rem var(--display)}
